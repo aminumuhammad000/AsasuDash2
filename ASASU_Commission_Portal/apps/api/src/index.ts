@@ -554,8 +554,8 @@ app.post("/api/disputes", requireAuth, evidenceUpload.single("evidence"), async 
     if (request.file) {
       const extension = request.file.mimetype === "application/pdf" ? ".pdf" : request.file.mimetype === "image/png" ? ".png" : request.file.mimetype === "image/webp" ? ".webp" : ".jpg";
       evidenceFileKey = `evidence_${nanoid(12)}${extension}`;
-      await fs.mkdir(uploadRoot, { recursive: true });
-      await fs.writeFile(path.join(uploadRoot, evidenceFileKey), request.file.buffer, { flag: "wx" });
+      await fsPromises.mkdir(uploadRoot, { recursive: true });
+      await fsPromises.writeFile(path.join(uploadRoot, evidenceFileKey), request.file.buffer, { flag: "wx" });
     }
     dispute = {
       id: `dsp_${nanoid(10)}`,
