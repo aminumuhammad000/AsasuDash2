@@ -1,0 +1,3542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASASU Realty LTD — Commission Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1a1f3c;
+    --navy-mid: #252b4a;
+    --navy-light: #2e3660;
+    --gold: #e8b84b;
+    --gold-light: #f5d07a;
+    --gold-dim: rgba(232,184,75,0.15);
+    --white: #ffffff;
+    --off-white: #f7f8fc;
+    --border: rgba(255,255,255,0.08);
+    --border-light: rgba(26,31,60,0.1);
+    --text-muted: rgba(255,255,255,0.5);
+    --success: #2ecc9a;
+    --error: #e85b4b;
+    --warning: #e8b84b;
+    --sidebar-w: 260px;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(26,31,60,0.12);
+    --shadow-lg: 0 12px 48px rgba(26,31,60,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--off-white);
+    color: var(--navy);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── SCREEN MANAGER ── */
+  .screen { display: none; }
+  .screen.active { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ══════════════════════════════════════
+     LOGIN & REGISTER SCREENS
+  ══════════════════════════════════════ */
+  #loginScreen, #registerScreen {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 60%, #1e2a5e 100%);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  #loginScreen::before, #registerScreen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23e8b84b' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  #loginScreen::after {
+    content: '';
+    position: absolute;
+    top: -200px; right: -200px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(232,184,75,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .login-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(232,184,75,0.2);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+    z-index: 1;
+    animation: fadeUp 0.6s ease;
+  }
+
+  .login-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 36px;
+    justify-content: center;
+  }
+  .logo-icon {
+    width: 48px; height: 48px;
+    background: var(--gold);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+  .logo-text h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    color: var(--white);
+    line-height: 1.1;
+  }
+  .logo-text span {
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .login-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    color: var(--white);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .login-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .tab-switcher {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 28px;
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .tab-btn.active {
+    background: var(--gold);
+    color: var(--navy);
+  }
+
+  .form-group { margin-bottom: 18px; }
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .form-input {
+    width: 100%;
+    padding: 13px 16px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: var(--white);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+    outline: none;
+  }
+  .form-input::placeholder { color: rgba(255,255,255,0.3); }
+  .form-input:focus {
+    border-color: var(--gold);
+    background: rgba(255,255,255,0.1);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--gold);
+    color: var(--navy);
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+  .btn-primary:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(232,184,75,0.3); }
+
+  /* ══════════════════════════════════════
+     MAIN APP LAYOUT
+  ══════════════════════════════════════ */
+  #appScreen { flex-direction: row; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--navy);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    z-index: 100;
+    transition: transform 0.3s;
+  }
+
+  .sidebar-header {
+    padding: 28px 24px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .s-logo-icon {
+    width: 40px; height: 40px;
+    background: var(--gold);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .s-logo-text h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 14px;
+    color: var(--white);
+    line-height: 1.2;
+  }
+  .s-logo-text p {
+    font-size: 10px;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .sidebar-user {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .user-avatar {
+    width: 44px; height: 44px;
+    background: var(--gold-dim);
+    border: 2px solid var(--gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+  .user-name { font-size: 14px; font-weight: 600; color: var(--white); }
+  .user-role { font-size: 12px; color: var(--text-muted); }
+  .user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--gold-dim);
+    border: 1px solid rgba(232,184,75,0.3);
+    color: var(--gold);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    margin-top: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .sidebar-nav { flex: 1; padding: 16px 0; overflow-y: auto; }
+  .nav-section-label {
+    padding: 8px 24px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 24px;
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .nav-item:hover { color: var(--white); background: rgba(255,255,255,0.05); }
+  .nav-item.active {
+    color: var(--gold);
+    background: var(--gold-dim);
+  }
+  .nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--gold);
+    border-radius: 0 2px 2px 0;
+  }
+  .nav-icon { width: 18px; text-align: center; font-size: 16px; }
+  .nav-badge {
+    margin-left: auto;
+    background: var(--error);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+
+  .sidebar-footer {
+    padding: 20px 24px;
+    border-top: 1px solid var(--border);
+  }
+  .logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(232,75,75,0.1);
+    border: 1px solid rgba(232,75,75,0.2);
+    border-radius: 8px;
+    color: #e85b4b;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .logout-btn:hover { background: rgba(232,75,75,0.18); }
+
+  /* MAIN CONTENT */
+  .main-content {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--white);
+    border-bottom: 1px solid var(--border-light);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .topbar-left h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--navy);
+  }
+  .topbar-left p { font-size: 12px; color: #888; margin-top: 1px; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .topbar-icon-btn {
+    width: 36px; height: 36px;
+    background: var(--off-white);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 15px;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .topbar-icon-btn:hover { background: var(--gold-dim); border-color: var(--gold); }
+  .notif-dot {
+    position: absolute;
+    top: 6px; right: 6px;
+    width: 7px; height: 7px;
+    background: var(--error);
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+  .menu-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 20px;
+    color: var(--navy);
+  }
+
+  /* PAGE SECTIONS */
+  .page-section { display: none; }
+  .page-section.active { display: block; }
+
+  .content-area { padding: 32px; flex: 1; }
+
+  /* ── HERO BANNER ── */
+  .hero-banner {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-mid) 50%, #1e2a5e 100%);
+    border-radius: 16px;
+    padding: 40px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero-banner::before {
+    content: '';
+    position: absolute;
+    right: -60px; top: -60px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(232,184,75,0.15) 0%, transparent 70%);
+  }
+  .hero-banner::after {
+    content: '';
+    position: absolute;
+    left: 40%; bottom: -40px;
+    width: 180px; height: 180px;
+    background: radial-gradient(circle, rgba(30,42,94,0.4) 0%, transparent 70%);
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold-dim);
+    border: 1px solid rgba(232,184,75,0.3);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .hero-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px;
+    color: var(--white);
+    line-height: 1.2;
+    margin-bottom: 12px;
+    max-width: 460px;
+  }
+  .hero-subtitle { font-size: 14px; color: rgba(255,255,255,0.65); max-width: 400px; line-height: 1.6; }
+  .hero-stats {
+    display: flex;
+    gap: 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat-val {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--gold);
+    font-weight: 700;
+  }
+  .hero-stat-label { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* ── STAT CARDS ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gold);
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .stat-card-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--gold-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  .stat-card-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    color: var(--navy);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .stat-card-label { font-size: 12px; color: #888; font-weight: 500; }
+  .stat-card-trend {
+    position: absolute;
+    top: 20px; right: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--success);
+  }
+
+  /* ── SECTION HEADERS ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--navy);
+  }
+  .section-sub { font-size: 13px; color: #888; margin-top: 2px; }
+  .section-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
+  }
+  .btn-gold { background: var(--gold); color: var(--navy); }
+  .btn-gold:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(232,184,75,0.3); }
+  .btn-outline { background: transparent; border: 1px solid var(--border-light); color: var(--navy); }
+  .btn-outline:hover { background: var(--off-white); border-color: var(--navy); }
+  .btn-navy { background: var(--navy); color: var(--white); }
+  .btn-navy:hover { background: var(--navy-mid); }
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
+  .btn-danger { background: rgba(232,75,75,0.1); border: 1px solid rgba(232,75,75,0.2); color: var(--error); }
+  .btn-danger:hover { background: rgba(232,75,75,0.18); }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-body { padding: 24px; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { border-bottom: 2px solid var(--border-light); }
+  th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  td {
+    padding: 14px 16px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--navy);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbff; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-pending { background: rgba(232,184,75,0.1); color: #b8860b; border: 1px solid rgba(232,184,75,0.3); }
+  .badge-success { background: rgba(46,204,154,0.1); color: #1a8a6b; border: 1px solid rgba(46,204,154,0.3); }
+  .badge-error { background: rgba(232,75,75,0.1); color: var(--error); border: 1px solid rgba(232,75,75,0.3); }
+  .badge-info { background: rgba(26,31,60,0.07); color: var(--navy); border: 1px solid var(--border-light); }
+
+  /* ── UPLOAD AREA ── */
+  .upload-zone {
+    border: 2px dashed rgba(26,31,60,0.15);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafbff;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--gold);
+    background: var(--gold-dim);
+  }
+  .upload-icon { font-size: 40px; margin-bottom: 16px; }
+  .upload-title { font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+  .upload-sub { font-size: 13px; color: #888; }
+  .upload-types {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 16px;
+  }
+  .upload-type-tag {
+    padding: 4px 12px;
+    background: var(--navy);
+    color: var(--white);
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .file-preview {
+    display: none;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    background: var(--gold-dim);
+    border: 1px solid rgba(232,184,75,0.3);
+    border-radius: 10px;
+    margin-top: 16px;
+  }
+  .file-preview.show { display: flex; }
+  .file-icon { font-size: 28px; }
+  .file-info h4 { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .file-info p { font-size: 12px; color: #888; }
+  .file-remove {
+    margin-left: auto;
+    width: 28px; height: 28px;
+    background: rgba(232,75,75,0.1);
+    border: 1px solid rgba(232,75,75,0.2);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--error);
+  }
+
+  /* STEP INDICATOR */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 32px;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+  }
+  .step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--off-white);
+    border: 2px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #aaa;
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+  .step-item.active .step-num { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+  .step-item.done .step-num { background: var(--success); border-color: var(--success); color: white; }
+  .step-label { font-size: 13px; font-weight: 500; color: #aaa; white-space: nowrap; }
+  .step-item.active .step-label { color: var(--navy); font-weight: 600; }
+  .step-item.done .step-label { color: var(--success); }
+  .step-line { flex: 1; height: 2px; background: var(--border-light); margin: 0 12px; }
+  .step-line.done { background: var(--success); }
+
+  /* GRID LAYOUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+  /* FORM IN LIGHT CONTEXT */
+  .field { margin-bottom: 20px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #555;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    font-size: 14px;
+    color: var(--navy);
+    background: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: all 0.2s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(232,184,75,0.12);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field-note { font-size: 11px; color: #888; margin-top: 6px; }
+
+  /* ALERT BOXES */
+  .alert {
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .alert-info { background: rgba(26,31,60,0.05); border: 1px solid rgba(26,31,60,0.12); color: var(--navy); }
+  .alert-warning { background: rgba(232,184,75,0.1); border: 1px solid rgba(232,184,75,0.3); color: #7a5c00; }
+  .alert-success { background: rgba(46,204,154,0.1); border: 1px solid rgba(46,204,154,0.3); color: #1a6b50; }
+  .alert-error { background: rgba(232,75,75,0.08); border: 1px solid rgba(232,75,75,0.25); color: #8b1a1a; }
+  .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  /* SUCCESS OVERLAY */
+  .success-card {
+    text-align: center;
+    padding: 56px 40px;
+  }
+  .success-icon-wrap {
+    width: 80px; height: 80px;
+    background: rgba(46,204,154,0.1);
+    border: 2px solid rgba(46,204,154,0.3);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    margin: 0 auto 24px;
+  }
+  .success-ref {
+    display: inline-block;
+    background: var(--navy);
+    color: var(--gold);
+    font-family: monospace;
+    font-size: 16px;
+    padding: 8px 20px;
+    border-radius: 6px;
+    margin: 16px 0;
+    letter-spacing: 2px;
+  }
+
+  /* LEADERBOARD */
+  .leader-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    border-radius: 10px;
+    transition: all 0.2s;
+    margin-bottom: 8px;
+  }
+  .leader-row:hover { background: var(--off-white); }
+  .leader-rank {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .rank-1 { background: #FFD700; color: var(--navy); }
+  .rank-2 { background: #C0C0C0; color: var(--navy); }
+  .rank-3 { background: #CD7F32; color: white; }
+  .rank-other { background: var(--off-white); color: #888; font-size: 13px; }
+  .leader-name { font-weight: 600; color: var(--navy); font-size: 14px; flex: 1; }
+  .leader-code { font-size: 12px; color: #888; }
+  .leader-bar-wrap { flex: 2; }
+  .leader-bar {
+    height: 6px;
+    background: var(--off-white);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .leader-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+  .leader-count { font-size: 14px; font-weight: 700; color: var(--navy); white-space: nowrap; }
+
+  /* SEARCH BAR */
+  .search-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .search-input-wrap {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+  }
+  .search-input-wrap .search-icon {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 15px;
+    color: #aaa;
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    padding: 11px 14px 11px 40px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: all 0.2s;
+    color: var(--navy);
+  }
+  .search-input:focus { border-color: var(--gold); }
+  .filter-select {
+    padding: 11px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--navy);
+    background: white;
+    outline: none;
+    cursor: pointer;
+  }
+  .filter-select:focus { border-color: var(--gold); }
+
+  /* ACTIVITY LOG */
+  .activity-item {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-light);
+    align-items: flex-start;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .activity-dot.blue { background: #4b8ef5; }
+  .activity-dot.green { background: var(--success); }
+  .activity-dot.red { background: var(--error); }
+  .activity-text { font-size: 13px; color: var(--navy); line-height: 1.5; }
+  .activity-time { font-size: 11px; color: #aaa; margin-top: 3px; }
+
+  /* TOAST */
+  .toast-container {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  .toast {
+    background: var(--navy);
+    color: var(--white);
+    padding: 14px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: var(--shadow-lg);
+    transform: translateX(120%);
+    transition: transform 0.3s;
+    pointer-events: auto;
+    min-width: 280px;
+    border-left: 3px solid var(--gold);
+  }
+  .toast.show { transform: translateX(0); }
+  .toast.toast-success { border-left-color: var(--success); }
+  .toast.toast-error { border-left-color: var(--error); }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,31,60,0.6);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: fadeUp 0.25s ease;
+  }
+  .modal-header {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--navy);
+  }
+  .modal-close {
+    width: 32px; height: 32px;
+    background: var(--off-white);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-close:hover { background: rgba(232,75,75,0.1); color: var(--error); }
+  .modal-body { padding: 24px 28px; }
+  .modal-footer {
+    padding: 16px 28px 24px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  /* PROGRESS */
+  .progress-bar-wrap {
+    background: var(--off-white);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(26,31,60,0.2);
+    border-top-color: var(--navy);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+
+  /* MOBILE NAV OVERLAY */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,31,60,0.5);
+    z-index: 99;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 1100px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .hero-stats { display: none; }
+  }
+  @media (max-width: 860px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay { display: block; }
+    .main-content { margin-left: 0; }
+    .menu-toggle { display: block; }
+    .content-area { padding: 20px 16px; }
+    .hero-banner { padding: 28px 24px; }
+    .hero-title { font-size: 22px; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 520px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .login-card { padding: 32px 24px; }
+  }
+  /* ══════════════════════════════════════════
+     MOBILE RESPONSIVENESS (NEW)
+  ══════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .sidebar { width: 240px; transform: translateX(-100%); transition: transform 0.3s ease; z-index: 1001; }
+    .sidebar.open { transform: translateX(0); }
+    .main-content { margin-left: 0; padding: 20px; }
+    .topbar { left: 0; width: 100%; }
+    .sidebar-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .sidebar-overlay.open { display: block; }
+    .mobile-menu-btn { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: white; border: 1px solid var(--border-light); border-radius: 8px; margin-right: 15px; cursor: pointer; }
+  }
+
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .hero-stats { grid-template-columns: 1fr; gap: 10px; }
+    .hero-card { padding: 30px 20px; }
+    .hero-title { font-size: 24px; }
+    .card-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .topbar-actions { display: none; } /* Hide secondary actions on mobile */
+  }
+
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; }
+    .topbar-title { font-size: 16px; }
+    .btn { padding: 8px 12px; font-size: 12px; }
+  }
+
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .password-wrapper input {
+    padding-right: 45px !important;
+  }
+  .password-toggle-btn {
+    position: absolute;
+    right: 14px;
+    cursor: pointer;
+    font-size: 16px;
+    user-select: none;
+    color: rgba(255, 255, 255, 0.6);
+    transition: opacity 0.2s, color 0.2s;
+    z-index: 10;
+  }
+  .field .password-toggle-btn {
+    color: #999;
+  }
+  .field .password-toggle-btn:hover {
+    color: var(--navy);
+  }
+  .password-toggle-btn:hover {
+    color: var(--gold);
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     TOAST NOTIFICATIONS
+══════════════════════════════════════════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ══════════════════════════════════════════
+     REGISTRATION SCREEN
+══════════════════════════════════════════ -->
+<div id="registerScreen" class="screen">
+  <div class="login-card">
+    <div id="regInitial">
+      <div class="login-title">Join ASASU Realty LTD</div>
+      <div class="login-sub">Submit your details for admin approval</div>
+      
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" class="form-input" id="regName" placeholder="Enter your full name">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-input" id="regEmail" placeholder="your@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Choose Password (or Partner ID)</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="regPass" placeholder="••••••••">
+          <span class="password-toggle-btn" id="regPassToggle" onclick="togglePassword('regPass', 'regPassToggle')">👁️</span>
+        </div>
+      </div>
+      
+      <button class="btn-primary" onclick="registerPartner()">Submit Registration →</button>
+      
+      <p style="text-align:center;margin-top:20px;font-size:13px;color:rgba(255,255,255,0.6);">
+        Already have an account? <a href="#" onclick="showLogin()" style="color:var(--gold);text-decoration:none;font-weight:600">Login here</a>
+      </p>
+    </div>
+
+    <!-- OTP Section -->
+    <div id="regOTP" style="display:none">
+      <div class="login-title">Verify Email</div>
+      <div class="login-sub" id="otpSubText">Enter the code sent to your email</div>
+      
+      <div class="form-group">
+        <label class="form-label">Verification Code (OTP)</label>
+        <input type="text" class="form-input" id="verifyOTP" placeholder="123456" maxlength="6" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700">
+      </div>
+      
+      <button class="btn-primary" onclick="verifyEmailOTP()">Verify & Continue →</button>
+      
+      <p style="text-align:center;margin-top:20px;font-size:13px;color:rgba(255,255,255,0.6);">
+        Didn't get a code? <a href="#" onclick="resendOTP()" style="color:var(--gold);text-decoration:none;font-weight:600">Resend Code</a>
+      </p>
+      <p style="text-align:center;margin-top:10px;font-size:13px;color:rgba(255,255,255,0.6);">
+        <a href="#" onclick="showRegInitial()" style="color:var(--text-muted);text-decoration:none;">← Back to details</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════ -->
+<div id="loginScreen" class="screen active">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon">🏠</div>
+      <div class="logo-text">
+        <h1>ASASU REALTY LTD</h1>
+        <span>Commission Portal</span>
+      </div>
+    </div>
+
+    <div id="partnerLoginForm">
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-input" id="partnerEmail" placeholder="your@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="partnerId" placeholder="Enter your Password">
+          <span class="password-toggle-btn" id="partnerIdToggle" onclick="togglePassword('partnerId', 'partnerIdToggle')">👁️</span>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="loginPartner()">Access Portal →</button>
+    </div>
+
+
+
+    <p style="text-align:center;margin-top:20px;font-size:12px;color:rgba(255,255,255,0.4);">
+      Secure portal for ASASU Realty LTD partners
+    </p>
+    
+    <p style="text-align:center;margin-top:16px;font-size:13px;color:rgba(255,255,255,0.6);">
+      New Partner? <a href="#" onclick="showRegister()" style="color:var(--gold);text-decoration:none;font-weight:600">Register here</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════ -->
+<div id="appScreen" class="screen">
+
+  <!-- Sidebar Overlay (mobile) -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="s-logo-icon">🏠</div>
+        <div class="s-logo-text">
+          <h2>ASASU REALTY LTD</h2>
+          <p>Partner Commission Portal</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-user">
+      <div class="user-avatar" id="sidebarAvatar">A</div>
+      <div class="user-name" id="sidebarName">Loading...</div>
+      <div class="user-role" id="sidebarRole">Partner</div>
+      <div class="user-badge" id="sidebarBadge">🟢 Active</div>
+    </div>
+
+    <div id="partnerApprovalSection" style="padding: 10px 24px; display: none;">
+      <div style="background: var(--gold-dim); border: 1px solid var(--gold); border-radius: 8px; padding: 12px;">
+        <div style="font-size: 11px; font-weight: 700; color: var(--gold); margin-bottom: 8px; text-transform: uppercase;">Pending Approval</div>
+        <div id="pendingPartnersCount" style="font-size: 14px; font-weight: 600; color: white;">0 Partners</div>
+        <button class="btn btn-gold btn-sm" style="width: 100%; margin-top: 10px;" onclick="showSection('admin-partners')">Review →</button>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebarNav">
+      <!-- populated by JS -->
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="logout()">
+        <span>⬅</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <button class="menu-toggle" onclick="toggleSidebar(true)">☰</button>
+        <div class="topbar-left">
+          <h3 id="topbarTitle">Dashboard</h3>
+          <p id="topbarSub">Welcome back</p>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="topbar-icon-btn" title="Notifications" onclick="showSection('notifications')">
+          🔔
+          <span class="notif-dot" id="notifDot" style="display:none"></span>
+        </div>
+        <div class="topbar-icon-btn" title="Help">❓</div>
+      </div>
+    </header>
+
+    <!-- CONTENT AREA -->
+    <div class="content-area">
+
+      <!-- ── AGENT: DASHBOARD ── -->
+      <div id="sec-dashboard" class="page-section active">
+        <div class="hero-banner">
+          <div class="hero-content">
+            <div class="hero-eyebrow">✦ ASASU REALTY LTD</div>
+            <h2 class="hero-title">Your commissions, processed with precision</h2>
+            <p class="hero-subtitle">Fast payments · Transparent tracking · Dedicated partner support. We stand behind every partner in our network.</p>
+          </div>
+          <div class="hero-stats" id="partnerHeroStats">
+            <div class="hero-stat" onclick="showSection('history')" style="cursor:pointer">
+              <div class="hero-stat-val" id="heroTotal">0</div>
+              <div class="hero-stat-label">Total Submitted</div>
+            </div>
+            <div class="hero-stat" onclick="showSection('history')" style="cursor:pointer">
+              <div class="hero-stat-val" id="heroMonth">0</div>
+              <div class="hero-stat-label">This Month</div>
+            </div>
+            <div class="hero-stat" style="opacity:0.8">
+              <div class="hero-stat-val" id="heroRank">#—</div>
+              <div class="hero-stat-label">Your Rank</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-row" id="partnerStatsRow">
+          <div class="stat-card" onclick="showSection('history')" style="cursor:pointer">
+            <div class="stat-card-icon">📋</div>
+            <div class="stat-card-value" id="statTotal">0</div>
+            <div class="stat-card-label">Total Claims</div>
+            <div class="stat-card-trend">↑ +12%</div>
+          </div>
+          <div class="stat-card" onclick="showSection('history')" style="cursor:pointer">
+            <div class="stat-card-icon">⏳</div>
+            <div class="stat-card-value" id="statPending">0</div>
+            <div class="stat-card-label">Pending Claims</div>
+          </div>
+          <div class="stat-card" onclick="showSection('history')" style="cursor:pointer">
+            <div class="stat-card-icon">✅</div>
+            <div class="stat-card-value" id="statPaid">0</div>
+            <div class="stat-card-label">Paid Claims</div>
+          </div>
+          <div class="stat-card" style="opacity:0.8">
+            <div class="stat-card-icon">🏆</div>
+            <div class="stat-card-value" id="statRank">#—</div>
+            <div class="stat-card-label">Leaderboard Rank</div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <div class="section-header">
+              <div>
+                <div class="section-title">Recent Submissions</div>
+                <div class="section-sub">Your latest commission claims</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="showSection('history')">View All</button>
+            </div>
+            <div class="card">
+              <div class="table-wrap">
+                <table id="recentTable">
+                  <thead>
+                    <tr><th>Reference</th><th>Applicants</th><th>Date</th><th>Status</th></tr>
+                  </thead>
+                  <tbody id="recentTableBody">
+                    <tr><td colspan="4" style="text-align:center;color:#aaa;padding:32px;">No submissions yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-header">
+              <div>
+                <div class="section-title">Messages from Admin</div>
+                <div class="section-sub">Important announcements</div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body">
+                <div id="partnerMessages">
+                  <div class="alert alert-info">
+                    <span class="alert-icon">📢</span>
+                    <div>
+                      <strong>Welcome to the new portal!</strong><br>
+                      Submit your Excel files below. Commission is processed within 24–48 hours.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:20px">
+              <div class="section-title" style="margin-bottom:12px">Quick Actions</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap">
+                <button class="btn btn-gold" onclick="showSection('submit')">📤 Submit Claim</button>
+                <button class="btn btn-outline" onclick="showSection('tickets')">🎫 Create Ticket</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Chart (NEW) -->
+        <div class="card" style="margin-top: 24px;">
+          <div class="card-header">
+            <div class="section-title">Submission Analytics</div>
+            <div class="section-sub">Real-time performance metrics</div>
+          </div>
+          <div class="card-body">
+            <canvas id="performanceChart" height="100"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AGENT: SUBMIT CLAIM ── -->
+      <div id="sec-submit" class="page-section">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Submit Commission Claim</div>
+            <div class="section-sub">Upload your client Excel file</div>
+          </div>
+        </div>
+
+        <div class="steps">
+          <div class="step-item active" id="step1-item">
+            <div class="step-num" id="step1-num">1</div>
+            <span class="step-label">Upload File</span>
+          </div>
+          <div class="step-line" id="line-1-2"></div>
+          <div class="step-item" id="step2-item">
+            <div class="step-num" id="step2-num">2</div>
+            <span class="step-label">Partner Details</span>
+          </div>
+          <div class="step-line" id="line-2-3"></div>
+          <div class="step-item" id="step3-item">
+            <div class="step-num" id="step3-num">3</div>
+            <span class="step-label">Review & Submit</span>
+          </div>
+        </div>
+
+        <!-- STEP 1 -->
+        <div id="submitStep1">
+          <div class="card">
+            <div class="card-body">
+              <div class="alert alert-warning">
+                <span class="alert-icon">⚠️</span>
+                <div>
+                  Any Excel file with <strong>altered percentages</strong> will be automatically rejected. 
+                  <a href="/assets/asasu_commission_template.xlsx" download style="color:var(--navy);text-decoration:underline;margin-left:5px;font-weight:700">Download Template</a>
+                </div>
+              </div>
+              <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                <div class="upload-icon">📊</div>
+                <div class="upload-title">Drop your Excel file here</div>
+                <div class="upload-sub">or click to browse from your computer</div>
+                <div class="upload-types">
+                  <span class="upload-type-tag">XLSX</span>
+                  <span class="upload-type-tag">XLS</span>
+                  <span class="upload-type-tag">CSV</span>
+                </div>
+              </div>
+              <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileSelect(event)">
+              <div class="file-preview" id="filePreview">
+                <div class="file-icon">📗</div>
+                <div class="file-info">
+                  <h4 id="filePreviewName">filename.xlsx</h4>
+                  <p id="filePreviewSize">0 KB</p>
+                </div>
+                <div class="file-remove" onclick="removeFile()">✕</div>
+              </div>
+              <div style="margin-top:20px;text-align:right">
+                <button class="btn btn-gold" onclick="goStep(2)" id="step1Next" disabled>Continue →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 2 -->
+        <div id="submitStep2" style="display:none">
+          <div class="card">
+            <div class="card-body">
+              <div class="grid-2">
+                <div class="field">
+                  <label>Partner Name *</label>
+                  <input type="text" id="sub_partnerName" placeholder="Your full name">
+                </div>
+                <div class="field">
+                  <label>Partner ID / Phone *</label>
+                  <input type="text" id="sub_partnerId" placeholder="e.g. AGT-0012">
+                </div>
+                <div class="field">
+                  <label>Number of Applicants *</label>
+                  <input type="number" id="sub_count" placeholder="e.g. 12" min="1">
+                  <div class="field-note">Must match the number of rows in your Excel file</div>
+                </div>
+              </div>
+              <div class="field">
+                <label>Notes for Admin (Optional)</label>
+                <textarea id="sub_notes" placeholder="Any special instructions or clarifications..."></textarea>
+              </div>
+              <div style="display:flex;gap:10px;justify-content:space-between;margin-top:8px">
+                <button class="btn btn-outline" onclick="goStep(1)">← Back</button>
+                <button class="btn btn-gold" onclick="goStep(3)">Review Submission →</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEP 3 -->
+        <div id="submitStep3" style="display:none">
+          <div class="card">
+            <div class="card-body">
+              <div class="section-title" style="margin-bottom:20px">Review Your Submission</div>
+              <div class="grid-2" id="reviewGrid" style="margin-bottom:24px">
+                <!-- populated by JS -->
+              </div>
+              <div class="alert alert-error" style="margin-bottom:16px; border:1px solid var(--error); background:rgba(232,91,75,0.05);">
+                <span class="alert-icon">⚖️</span>
+                <div style="color:var(--error); font-weight:600;">
+                  Attempting to claim another person’s commission, or trying to take credit for a client referred by someone else, will be thoroughly investigated and may result in legal action.
+                </div>
+              </div>
+              <div class="alert alert-info">
+                <span class="alert-icon">ℹ️</span>
+                By submitting, you confirm that all information is accurate and the file has not been altered.
+              </div>
+              <div style="display:flex;gap:10px;justify-content:space-between;margin-top:8px">
+                <button class="btn btn-outline" onclick="goStep(2)">← Edit Details</button>
+                <button class="btn btn-gold" onclick="submitClaim()" id="submitFinalBtn">
+                  📤 Submit Commission Claim
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUCCESS -->
+        <div id="submitSuccess" style="display:none">
+          <div class="card">
+            <div class="success-card">
+              <div class="success-icon-wrap">✅</div>
+              <h2 style="font-family:'Playfair Display',serif;font-size:26px;color:var(--navy);margin-bottom:8px">Claim Submitted!</h2>
+              <p style="color:#888;font-size:14px">Your commission claim has been received and is under review.</p>
+              <div class="success-ref" id="successRef">ASU-2024-001</div>
+              <p style="color:#888;font-size:13px;margin-bottom:28px">Commission is typically processed within 24–48 hours. You'll receive an email confirmation.</p>
+              <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                <button class="btn btn-gold" onclick="resetSubmit()">📤 Submit Another Claim</button>
+                <button class="btn btn-outline" onclick="showSection('history')">View History</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AGENT: HISTORY ── -->
+      <div id="sec-history" class="page-section">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Submission History</div>
+            <div class="section-sub">All your commission claims</div>
+          </div>
+          <button class="btn btn-gold btn-sm" onclick="showSection('submit')">+ New Claim</button>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="search-bar" style="margin:0;flex:1">
+              <div class="search-input-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="Search submissions..." oninput="filterHistory(this.value)">
+              </div>
+              <select class="filter-select" onchange="filterHistoryStatus(this.value)">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="paid">Paid</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Reference</th><th>File</th><th>Applicants</th><th>Submitted</th><th>Status</th><th>Action</th></tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <tr><td colspan="6" style="text-align:center;color:#aaa;padding:40px;">No submissions yet. Submit your first claim!</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AGENT: TICKETS ── -->
+      <div id="sec-tickets" class="page-section">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Support Tickets</div>
+            <div class="section-sub">Commission issues and inquiries</div>
+          </div>
+          <button class="btn btn-gold btn-sm" onclick="openTicketModal()">+ New Ticket</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Ticket ID</th><th>Type</th><th>Submitted</th><th>Status</th><th>Action</th></tr>
+              </thead>
+              <tbody id="ticketsTableBody">
+                <tr><td colspan="5" style="text-align:center;color:#aaa;padding:40px;">No tickets yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AGENT: PROFILE ── -->
+      <div id="sec-profile" class="page-section">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Profile Settings</div>
+            <div class="section-sub">Manage your account</div>
+          </div>
+        </div>
+        <div class="card" style="max-width:480px">
+          <div class="card-header"><div class="section-title" style="font-size:16px">🔒 Update Password</div></div>
+          <div class="card-body">
+            <div class="field">
+              <label>Current Password</label>
+              <div class="password-wrapper">
+                <input type="password" id="profileCurrentPass" placeholder="••••••••">
+                <span class="password-toggle-btn" id="profileCurrentPassToggle" onclick="togglePassword('profileCurrentPass', 'profileCurrentPassToggle')">👁️</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>New Password</label>
+              <div class="password-wrapper">
+                <input type="password" id="profileNewPass" placeholder="••••••••">
+                <span class="password-toggle-btn" id="profileNewPassToggle" onclick="togglePassword('profileNewPass', 'profileNewPassToggle')">👁️</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Confirm New Password</label>
+              <div class="password-wrapper">
+                <input type="password" id="profileConfirmPass" placeholder="••••••••">
+                <span class="password-toggle-btn" id="profileConfirmPassToggle" onclick="togglePassword('profileConfirmPass', 'profileConfirmPassToggle')">👁️</span>
+              </div>
+            </div>
+            <button class="btn btn-gold" onclick="updatePassword('profile')">Update Password</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════
+           ADMIN SECTIONS
+      ══════════════════════════════ -->
+
+
+
+    </div><!-- /content-area -->
+  </div><!-- /main-content -->
+</div><!-- /appScreen -->
+
+<!-- ══════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════ -->
+
+<!-- New Ticket Modal -->
+<div class="modal-overlay" id="ticketModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Create Support Ticket</div>
+      <button class="modal-close" onclick="closeModal('ticketModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Ticket Type</label>
+        <select id="ticketType">
+          <option>Missing Commission Payment</option>
+          <option>Wrong Commission Calculation</option>
+          <option>Check Claim Status</option>
+          <option>Technical Issue</option>
+          <option>Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Partner ID / Phone *</label>
+        <input type="text" id="ticketPartnerId" placeholder="Your partner ID">
+      </div>
+      <div class="field">
+        <label>Email Address *</label>
+        <input type="email" id="ticketEmail" placeholder="your@email.com">
+      </div>
+      <div class="field">
+        <label>Description *</label>
+        <textarea id="ticketDescription" rows="4" placeholder="Describe your issue in detail..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('ticketModal')">Cancel</button>
+      <button class="btn btn-gold" onclick="submitTicket()">Submit Ticket</button>
+    </div>
+  </div>
+</div>
+
+<!-- Partner Detail Modal -->
+<div class="modal-overlay" id="partnerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="partnerModalTitle">Partner Profile</div>
+      <button class="modal-close" onclick="closeModal('partnerModal')">✕</button>
+    </div>
+    <div class="modal-body" id="partnerModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('partnerModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ticket Detail Modal -->
+<div class="modal-overlay" id="ticketDetailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="ticketDetailModalTitle">Ticket Details</div>
+      <button class="modal-close" onclick="closeModal('ticketDetailModal')">✕</button>
+    </div>
+    <div class="modal-body" id="ticketDetailModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('ticketDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Claim Detail Modal -->
+<div class="modal-overlay" id="claimModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="claimModalTitle">Claim Details</div>
+      <button class="modal-close" onclick="closeModal('claimModal')">✕</button>
+    </div>
+    <div class="modal-body" id="claimModalBody"></div>
+    <div class="modal-footer" id="claimModalFooter">
+      <button class="btn btn-outline" onclick="closeModal('claimModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  let socket;
+  function togglePassword(inputId, toggleId) {
+    const input = document.getElementById(inputId);
+    const toggle = document.getElementById(toggleId);
+    if (input && toggle) {
+      if (input.type === 'password') {
+        input.type = 'text';
+        toggle.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        toggle.textContent = '👁️';
+      }
+    }
+  }
+</script>
+<script>
+function goStep(step) {
+  // Hide all steps
+  document.getElementById('submitStep1').style.display = 'none';
+  document.getElementById('submitStep2').style.display = 'none';
+  document.getElementById('submitStep3').style.display = 'none';
+  document.getElementById('submitSuccess').style.display = 'none';
+
+  // Show target step
+  const target = document.getElementById('submitStep' + step);
+  if (target) target.style.display = 'block';
+
+  // Update step indicators
+  for (let i = 1; i <= 3; i++) {
+    const item = document.getElementById('step' + i + '-item');
+    const line = document.getElementById('line-' + i + '-' + (i + 1));
+    
+    if (i < step) {
+      if (item) {
+        item.classList.add('done');
+        item.classList.remove('active');
+      }
+      if (line) line.classList.add('done');
+    } else if (i === step) {
+      if (item) {
+        item.classList.add('active');
+        item.classList.remove('done');
+      }
+      if (line) line.classList.remove('done');
+    } else {
+      if (item) item.classList.remove('active', 'done');
+      if (line) line.classList.remove('done');
+    }
+  }
+
+  // If going to step 3, populate review grid
+  if (step === 3) {
+    const grid = document.getElementById('reviewGrid');
+    const file = document.getElementById('fileInput').files[0];
+    const fields = [
+      ['Partner Name', document.getElementById('sub_partnerName').value],
+      ['Partner ID', document.getElementById('sub_partnerId').value],
+      ['Applicants', document.getElementById('sub_count').value],
+      ['File Name', file ? file.name : 'No file selected'],
+      ['Notes', document.getElementById('sub_notes').value || 'None']
+    ];
+    grid.innerHTML = fields.map(([k,v]) => `
+      <div style="padding:12px;background:var(--off-white);border-radius:8px;border:1px solid var(--border-light)">
+        <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${k}</div>
+        <div style="font-size:14px;font-weight:500;color:var(--navy)">${v}</div>
+      </div>`).join('');
+  }
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const preview = document.getElementById('filePreview');
+  const nameEl = document.getElementById('filePreviewName');
+  const sizeEl = document.getElementById('filePreviewSize');
+  const nextBtn = document.getElementById('step1Next');
+
+  nameEl.textContent = file.name;
+  sizeEl.textContent = (file.size / 1024).toFixed(1) + ' KB';
+  preview.classList.add('show');
+  nextBtn.disabled = false;
+}
+
+function handleDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function handleDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const files = e.dataTransfer.files;
+  if (files.length) {
+    document.getElementById('fileInput').files = files;
+    handleFileSelect({ target: { files: files } });
+  }
+}
+
+function removeFile() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('filePreview').classList.remove('show');
+  document.getElementById('step1Next').disabled = true;
+}
+
+function resetSubmit() {
+  document.getElementById('fileInput').value = '';
+  document.getElementById('sub_partnerName').value = DB.currentUser || '';
+  document.getElementById('sub_partnerId').value = '';
+  document.getElementById('sub_email').value = DB.currentEmail || '';
+  document.getElementById('sub_count').value = '';
+  document.getElementById('sub_notes').value = '';
+  document.getElementById('filePreview').classList.remove('show');
+  document.getElementById('step1Next').disabled = true;
+  goStep(1);
+}
+
+function openTicketModal() {
+  const modal = document.getElementById('ticketModal');
+  if (modal) {
+    modal.classList.add('open');
+    // Pre-fill partner info if available
+    const partnerIdInput = document.getElementById('ticketPartnerId');
+    const emailInput = document.getElementById('ticketEmail');
+    if (partnerIdInput) partnerIdInput.value = ''; // Or a saved Partner ID if you have one
+    if (emailInput) emailInput.value = DB.currentEmail || '';
+  }
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove('open');
+}
+
+async function viewPartner(id) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/partners`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const partners = await res.json();
+    const a = partners.find(x => x._id === id);
+    
+    if (!a) {
+      toast('Partner not found', 'error');
+      return;
+    }
+
+    document.getElementById('partnerModalTitle').textContent = 'Profile: ' + a.name;
+    
+    const subRes = await fetch(`${API_URL}/submissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const allSubs = await subRes.json();
+    const partnerSubs = allSubs.filter(s => s.partnerName === a.name || s.email === a.email);
+    const paidSubs = partnerSubs.filter(s => s.status === 'paid');
+    const totalEarnings = paidSubs.length * 5000;
+
+    const fields = [
+      ['Full Name', a.name],
+      ['Email Address', a.email],
+      ['Status', a.status],
+      ['Last Active', a.lastActive ? fmtDate(a.lastActive) : 'Never'],
+      ['Joined Date', fmtDate(a.createdAt)],
+      ['Total Submissions', partnerSubs.length],
+      ['Paid Claims', paidSubs.length],
+      ['Total Earnings', '₦' + totalEarnings.toLocaleString()]
+    ];
+
+    document.getElementById('partnerModalBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column: span 2; display:flex; flex-direction:column; align-items:center; padding: 20px 0; border-bottom: 1px solid var(--border-light); margin-bottom: 10px;">
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--gold-dim);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;margin-bottom:10px;">${a.name.slice(0,1)}</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy)">${a.name}</div>
+          <div style="font-size:13px;color:#888">${a.email}</div>
+        </div>
+        ${fields.map(([k,v]) => `
+          <div style="padding:12px;background:var(--off-white);border-radius:8px;border:1px solid var(--border-light)">
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${k}</div>
+            <div style="font-size:14px;font-weight:500;color:var(--navy)">${k==='Status'?statusBadge(v):v}</div>
+          </div>`).join('')}
+      </div>`;
+
+    document.getElementById('partnerModal').classList.add('open');
+  } catch (err) {
+    toast('Failed to load partner profile', 'error');
+  }
+}
+
+async function viewTicket(ticketId) {
+  const token = localStorage.getItem('token');
+  try {
+    // In a real app, you might fetch details from API
+    // For now, we search in local data if available, or just fetch all and find
+    const res = await fetch(`${API_URL}/tickets`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const tickets = await res.json();
+    const t = tickets.find(x => x.ticketId === ticketId);
+    
+    if (!t) {
+      toast('Ticket not found', 'error');
+      return;
+    }
+
+    document.getElementById('ticketDetailModalTitle').textContent = 'Ticket ' + ticketId;
+    const fields = [
+      ['ID', t.ticketId],
+      ['Type', t.type],
+      ['Partner', t.partnerName],
+      ['Email', t.email],
+      ['Status', t.status],
+      ['Submitted', fmtDate(t.createdAt)],
+      ['Description', t.description || 'No description provided']
+    ];
+
+    document.getElementById('ticketDetailModalBody').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        ${fields.map(([k,v]) => {
+          if (k === 'Description') {
+            return `<div style="grid-column: span 2; padding:12px;background:var(--off-white);border-radius:8px;border:1px solid var(--border-light)">
+                      <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${k}</div>
+                      <div style="font-size:14px;font-weight:500;color:var(--navy);white-space:pre-wrap">${v}</div>
+                    </div>`;
+          }
+          return `
+            <div style="padding:12px;background:var(--off-white);border-radius:8px;border:1px solid var(--border-light)">
+              <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${k}</div>
+              <div style="font-size:14px;font-weight:500;color:var(--navy)">${k==='Status'?statusBadge(v):v}</div>
+            </div>`;
+        }).join('')}
+      </div>
+      <div id="ticketConversation" style="margin-top:20px; max-height:200px; overflow-y:auto; padding:10px; background:#f4f4f4; border-radius:8px;">
+        <div style="font-size:11px; font-weight:700; color:#888; text-transform:uppercase; margin-bottom:10px;">Conversation</div>
+        ${t.replies && t.replies.length > 0 ? t.replies.map(r => `
+          <div style="margin-bottom:12px; padding:10px; background:white; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span style="font-size:12px; font-weight:700; color:var(--navy)">${r.senderName}</span>
+              <span style="font-size:10px; color:#aaa">${fmtDate(r.createdAt)}</span>
+            </div>
+            <div style="font-size:13px; color:#555">${r.message}</div>
+          </div>
+        `).join('') : '<p style="font-size:12px; color:#888; text-align:center">No replies yet.</p>'}
+      </div>
+      <div style="margin-top:15px">
+        <textarea id="ticketReplyMsg" placeholder="Type your reply here..." style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--border-light); font-family:inherit; font-size:13px; min-height:80px;"></textarea>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:10px;">
+        <button class="btn btn-navy" onclick="submitTicketReply('${t._id}')" style="flex:1; justify-content:center">Send Reply</button>
+        ${DB.currentRole === 'admin' && t.status === 'open' ? `<button class="btn btn-success" onclick="resolveTicket('${t._id}')" style="flex:1; justify-content:center">Resolve Ticket</button>` : ''}
+      </div>`;
+
+    document.getElementById('ticketDetailModal').classList.add('open');
+  } catch (err) {
+    toast('Failed to load ticket details', 'error');
+  }
+}
+
+async function submitTicketReply(ticketId) {
+  const msg = document.getElementById('ticketReplyMsg').value.trim();
+  if (!msg) return toast('Please type a message', 'error');
+  
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/tickets/${ticketId}/reply`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ message: msg })
+    });
+    if (!res.ok) throw new Error('Failed to send reply');
+    
+    document.getElementById('ticketReplyMsg').value = '';
+    toast('Reply sent', 'success');
+    viewTicket(ticketId); // Refresh
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function submitClaimReply(ref) {
+  const msg = document.getElementById('claimReplyMsg').value.trim();
+  if (!msg) return toast('Please type a message', 'error');
+  
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions/${ref}/reply`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ message: msg })
+    });
+    if (!res.ok) throw new Error('Failed to send message');
+    
+    document.getElementById('claimReplyMsg').value = '';
+    toast('Message sent', 'success');
+    viewClaim(ref); // Refresh
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+let perfChart;
+
+async function initApp() {
+  console.log('initApp called');
+  const token = localStorage.getItem('token');
+  const savedUser = localStorage.getItem('userName');
+  const savedRole = localStorage.getItem('userRole');
+  const savedEmail = localStorage.getItem('userEmail');
+
+  console.log('Session check:', { hasToken: !!token, savedUser, savedRole });
+
+  if (!token || !savedUser || !savedRole) {
+    console.log('No session found, showing login');
+    showLogin();
+    return;
+  }
+
+  // Sync State
+  DB.currentUser = savedUser;
+  DB.currentRole = savedRole;
+  DB.currentEmail = savedEmail;
+
+  if (DB.currentRole === 'admin') {
+    fetchNotificationSettings();
+  }
+
+  // Force UI Reset - THIS IS CRITICAL
+  const loginScr = document.getElementById('loginScreen');
+  const regScr = document.getElementById('registerScreen');
+  const appScr = document.getElementById('appScreen');
+  
+  if (loginScr) loginScr.classList.remove('active');
+  if (regScr) regScr.classList.remove('active');
+  if (appScr) {
+    appScr.classList.add('active');
+    appScr.style.display = 'flex'; // Explicitly set display
+  }
+
+  const isAdmin = DB.currentRole === 'admin';
+  const initials = DB.currentUser ? DB.currentUser.slice(0,2).toUpperCase() : '??';
+
+  const avatarEl = document.getElementById('sidebarAvatar');
+  const nameEl = document.getElementById('sidebarName');
+  const roleEl = document.getElementById('sidebarRole');
+  const badgeEl = document.getElementById('sidebarBadge');
+
+  if (avatarEl) avatarEl.textContent = initials;
+  if (nameEl) nameEl.textContent = DB.currentUser;
+  if (roleEl) roleEl.textContent = isAdmin ? 'Admin User' : 'Commission Partner';
+  if (badgeEl) badgeEl.innerHTML = isAdmin ? '⚙️ Admin' : '🟢 Active';
+
+  initSocket();
+  buildNav(isAdmin);
+  if (isAdmin) {
+    location.href = '/admin';
+    return;
+  }
+  showSection('dashboard');
+  
+  const perfCanvas = document.getElementById('performanceChart');
+  if (perfCanvas) initPerfChart();
+  updateStats();
+}
+
+function initPerfChart() {
+  const ctx = document.getElementById('performanceChart').getContext('2d');
+  perfChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May'],
+      datasets: [{
+        label: 'Total Applications',
+        data: [12, 19, 3, 5, 2],
+        borderColor: '#e8b84b',
+        backgroundColor: 'rgba(232, 184, 75, 0.1)',
+        tension: 0.4,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function updatePerfChart(submissions) {
+  if (!perfChart) return;
+  // Group submissions by month and update chart
+  // (Simplified for now: counting total vs paid)
+  const paid = submissions.filter(s => s.status === 'paid').length;
+  const pending = submissions.filter(s => s.status === 'pending').length;
+  perfChart.data.datasets[0].data = [10, 15, 8, 20, submissions.length];
+  perfChart.update();
+}
+
+function initSocket() {
+  // Explicitly point to the server URL
+  // Automatically use the current window host
+  socket = io(window.location.origin);
+  const token = localStorage.getItem('token');
+  if (token) {
+    // Decode token to get user ID (simplification)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    socket.emit('join', payload.id);
+  }
+
+  socket.on('notification', (data) => {
+    toast(data.message, data.type === 'status_update' ? 'success' : 'info');
+    updateStats();
+    if (document.getElementById('sec-history').classList.contains('active')) renderHistory();
+  });
+}
+/* ══════════════════════════════════
+   DATA STORE (in-memory)
+══════════════════════════════════ */
+const DB = {
+  submissions: [],
+  partners: {},
+  tickets: [],
+  messages: [],
+  activityLog: [],
+  currentRole: null,
+  adminFilters: {
+    search: '',
+    status: '',
+    month: '',
+    partnerSearch: ''
+  }
+};
+
+/* ══════════════════════════════════
+   HELPERS
+══════════════════════════════════ */
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
+function genRef() {
+  return 'ASU-' + Date.now().toString().slice(-7);
+}
+function genTicketId() {
+  return 'TKT-' + Date.now().toString().slice(-6);
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function statusBadge(s) {
+  if (s === 'approved') s = 'paid';
+  const map = { pending:'badge-pending', paid:'badge-success', rejected:'badge-error', resolved:'badge-success', open:'badge-info' };
+  const icons = { pending:'⏳', paid:'✅', rejected:'✗', resolved:'✅', open:'🔵' };
+  return `<span class="badge ${map[s]||'badge-info'}">${icons[s]||''} ${s.toUpperCase()}</span>`;
+}
+
+/* ══════════════════════════════════
+   TOAST
+══════════════════════════════════ */
+function toast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  const icons = { info:'ℹ️', success:'✅', error:'❌', warning:'⚠️' };
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `<span>${icons[type]||'ℹ️'}</span> ${msg}`;
+  c.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 3500);
+}
+
+/* ══════════════════════════════════
+   LOGIN
+══════════════════════════════════ */
+function switchLoginTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (tab==='partner'&&i===0)||(tab==='admin'&&i===1)));
+  document.getElementById('partnerLoginForm').style.display = tab==='partner' ? 'block' : 'none';
+  document.getElementById('adminLoginForm').style.display = tab==='admin' ? 'block' : 'none';
+}
+
+const API_URL = window.location.origin + '/api';
+
+function showRegister() {
+  document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('registerScreen').classList.add('active');
+  showRegInitial();
+}
+function showLogin() {
+  document.getElementById('registerScreen').classList.remove('active');
+  document.getElementById('loginScreen').classList.add('active');
+}
+
+function showRegInitial() {
+  document.getElementById('regInitial').style.display = 'block';
+  document.getElementById('regOTP').style.display = 'none';
+}
+
+function showRegOTP(email) {
+  document.getElementById('regInitial').style.display = 'none';
+  document.getElementById('regOTP').style.display = 'block';
+  document.getElementById('otpSubText').textContent = `Enter the code sent to ${email}`;
+}
+
+async function registerPartner() {
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value.trim();
+
+  if (!name || !email || !password) {
+    toast('Please fill in all fields', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, role: 'partner' })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    
+    if (data.needsVerification) {
+      toast('Verification code sent to your email', 'info');
+      showRegOTP(email);
+    } else {
+      toast(data.message, 'success');
+      showLogin();
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function verifyEmailOTP() {
+  const email = document.getElementById('regEmail').value.trim();
+  const otp = document.getElementById('verifyOTP').value.trim();
+  if (!otp) { toast('Please enter the verification code', 'error'); return; }
+
+  try {
+    const res = await fetch(`${API_URL}/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    toast(data.message, 'success');
+    showLogin();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function resendOTP() {
+  const email = document.getElementById('regEmail').value.trim();
+  try {
+    const res = await fetch(`${API_URL}/auth/resend-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast(data.message, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loginPartner() {
+  const id = document.getElementById('partnerId').value.trim();
+  const email = document.getElementById('partnerEmail').value.trim();
+  if (!id || !email) { toast('Please enter your Email and Password', 'error'); return; }
+
+  try {
+    const btn = document.querySelector('#partnerLoginForm .btn-primary');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Logging in...';
+    btn.disabled = true;
+
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: id }) // Using Partner ID as password
+    });
+
+    const data = await res.json();
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+
+    if (!res.ok) {
+      if (data.needsVerification) {
+        toast('Please verify your email first', 'warning');
+        document.getElementById('regEmail').value = email; // Pre-fill for OTP
+        showRegister();
+        showRegOTP(email);
+        return;
+      }
+      throw new Error(data.error || 'Login failed');
+    }
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('userName', data.user.name);
+    localStorage.setItem('userRole', data.user.role);
+    localStorage.setItem('userEmail', data.user.email);
+    
+    DB.currentUser = data.user.name;
+    DB.currentRole = data.user.role;
+    DB.currentEmail = data.user.email;
+    initApp();
+    toast(`Welcome back, ${data.user.name}!`, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function loginAdmin() {
+  const email = document.getElementById('adminUser').value.trim();
+  const password = document.getElementById('adminPass').value.trim();
+  if (!email || !password) { toast('Please enter admin credentials', 'error'); return; }
+
+  try {
+    const btn = document.querySelector('#adminLoginForm .btn-primary');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Verifying...';
+    btn.disabled = true;
+
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+
+    if (!res.ok) throw new Error(data.error);
+
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('userName', data.user.name);
+    localStorage.setItem('userRole', data.user.role);
+    localStorage.setItem('userEmail', data.user.email);
+    
+    DB.currentUser = data.user.name;
+    DB.currentRole = data.user.role;
+    DB.currentEmail = data.user.email;
+    initApp();
+    toast('Admin access granted', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function logout() {
+  localStorage.clear();
+  location.reload();
+}
+
+async function fetchNotificationSettings() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/settings`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const settings = await res.json();
+    const emailsSetting = settings.find(s => s.key === 'admin_notification_emails');
+    if (emailsSetting) {
+      document.getElementById('adminNotificationEmails').value = Array.isArray(emailsSetting.value) 
+        ? emailsSetting.value.join(', ') 
+        : emailsSetting.value;
+    }
+  } catch (err) {
+    console.error('Failed to fetch notification settings:', err);
+  }
+}
+
+async function updateNotificationSettings() {
+  const emails = document.getElementById('adminNotificationEmails').value.trim();
+  const token = localStorage.getItem('token');
+  
+  if (!emails) {
+      toast('Please enter at least one email', 'error');
+      return;
+  }
+
+  // Basic validation - check if emails are valid
+  const emailArray = emails.split(',').map(e => e.trim()).filter(e => e);
+  for (const email of emailArray) {
+    if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      toast(`Invalid email: ${email}`, 'error');
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/settings`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({
+        key: 'admin_notification_emails',
+        value: emails,
+        description: 'Emails that receive notifications for new partners and claims'
+      })
+    });
+    
+    if (!res.ok) throw new Error('Failed to update settings');
+    toast('Notification settings updated successfully', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function updatePassword(prefix) {
+  const currentPassword = document.getElementById(prefix + 'CurrentPass').value;
+  const newPassword = document.getElementById(prefix + 'NewPass').value;
+  const confirmPassword = document.getElementById(prefix + 'ConfirmPass').value;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    toast('Please fill in all password fields', 'error');
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    toast('New passwords do not match', 'error');
+    return;
+  }
+
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/auth/change-password`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    toast('Password updated successfully', 'success');
+    document.getElementById(prefix + 'CurrentPass').value = '';
+    document.getElementById(prefix + 'NewPass').value = '';
+    document.getElementById(prefix + 'ConfirmPass').value = '';
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+function buildNav(isAdmin) {
+  const nav = document.getElementById('sidebarNav');
+  const partnerNav = [
+    { section:'dashboard', icon:'🏠', label:'Dashboard' },
+    { section:'submit', icon:'📤', label:'Submit Claim' },
+    { section:'history', icon:'📋', label:'My Submissions' },
+    { section:'tickets', icon:'🎫', label:'Support Tickets' },
+    { section:'profile', icon:'�', label:'My Profile' },
+  ];
+  const adminNav = [
+    { label:'OVERVIEW', type:'section-label' },
+    { section:'admin-dashboard', icon:'🏠', label:'Dashboard' },
+    { section:'admin-claims', icon:'📋', label:'All Claims' },
+    { section:'admin-leaderboard', icon:'🏆', label:'Leaderboard' },
+    { label:'MANAGEMENT', type:'section-label' },
+    { section:'admin-partners', icon:'👥', label:'Partners' },
+    { section:'admin-tickets', icon:'🎫', label:'Tickets' },
+    { label:'COMMUNICATION', type:'section-label' },
+    { section:'admin-broadcast', icon:'📢', label:'Broadcast' },
+    { label:'SYSTEM', type:'section-label' },
+    { section:'admin-settings', icon:'⚙️', label:'Settings' },
+  ];
+  const items = isAdmin ? adminNav : partnerNav;
+  nav.innerHTML = items.map(i => {
+    if (i.type === 'section-label') return `<div class="nav-section-label">${i.label}</div>`;
+    return `<button class="nav-item" data-section="${i.section}" onclick="showSection('${i.section}')">
+      <span class="nav-icon">${i.icon}</span>${i.label}
+    </button>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════
+   NAVIGATION
+══════════════════════════════════ */
+const sectionTitles = {
+  'dashboard': ['Dashboard', 'Welcome back'],
+  'submit': ['Submit Claim', 'Upload your client Excel file'],
+  'history': ['My Submissions', 'Track your commission claims'],
+  'tickets': ['Support Tickets', 'Commission issues and inquiries'],
+  'profile': ['Profile Settings', 'Manage your account'],
+  'admin-dashboard': ['Admin Dashboard', 'Commission management overview'],
+  'admin-claims': ['All Claims', 'Complete submission records'],
+  'admin-leaderboard': ['Leaderboard', 'Partner performance rankings'],
+  'admin-partners': ['Partner Management', 'Manage and approve partner accounts'],
+  'admin-tickets': ['Support Tickets', 'Partner inquiries'],
+  'admin-broadcast': ['Communication', 'Send messages to partners'],
+  'admin-settings': ['Settings', 'Portal configuration'],
+};
+
+function showSection(sec) {
+  document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === sec));
+  const el = document.getElementById('sec-' + sec);
+  if (el) el.classList.add('active');
+  const [title, sub] = sectionTitles[sec] || ['Portal', ''];
+  document.getElementById('topbarTitle').textContent = title;
+  document.getElementById('topbarSub').textContent = sub;
+  toggleSidebar(false);
+
+  if (sec === 'admin-claims') renderAdminClaims();
+  if (sec === 'admin-leaderboard') renderLeaderboard();
+  if (sec === 'admin-partners') renderAdminPartners();
+  if (sec === 'admin-dashboard') renderAdminDashboard();
+  if (sec === 'history') renderHistory();
+  if (sec === 'admin-tickets') renderAdminTickets();
+  if (sec === 'tickets') renderTickets();
+}
+
+function toggleSidebar(open) {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('sidebarOverlay');
+  sb.classList.toggle('open', open);
+  if (ov) ov.style.display = open ? 'block' : 'none';
+}
+
+/* ══════════════════════════════════
+   STATS
+══════════════════════════════════ */
+async function updateStats() {
+  const token = localStorage.getItem('token');
+  try {
+    // Fetch real submissions
+    const subRes = await fetch(`${API_URL}/submissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!subRes.ok) throw new Error('Failed to fetch submissions: ' + subRes.status);
+    const submissions = await subRes.json();
+    DB.submissions = Array.isArray(submissions) ? submissions : [];
+
+    const role = DB.currentRole || localStorage.getItem('userRole');
+
+    if (role !== 'admin') {
+      // PARTNER / AGENT stats
+      const mine = DB.submissions;
+      const elTotal = document.getElementById('statTotal');
+      const elPending = document.getElementById('statPending');
+      const elPaid = document.getElementById('statPaid');
+      const elEarnings = document.getElementById('statEarnings');
+      
+      const elHeroTotal = document.getElementById('heroTotal');
+      const elHeroMonth = document.getElementById('heroMonth');
+
+      const sumCount = arr => arr.reduce((sum, item) => sum + (item.count || 0), 0);
+      
+      if (elTotal) elTotal.textContent = sumCount(mine);
+      if (elPending) elPending.textContent = sumCount(mine.filter(s => s.status === 'pending'));
+      if (elPaid) elPaid.textContent = sumCount(mine.filter(s => s.status === 'paid'));
+      if (elEarnings) {
+        const earnings = sumCount(mine.filter(s => s.status === 'paid')) * 5000;
+        elEarnings.textContent = '₦' + earnings.toLocaleString();
+      }
+      
+      if (elHeroTotal) elHeroTotal.textContent = sumCount(mine);
+      if (elHeroMonth) {
+        const thisMonth = new Date().getMonth();
+        const thisYear = new Date().getFullYear();
+        const count = sumCount(mine.filter(s => {
+          const d = new Date(s.date);
+          return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+        }));
+        elHeroMonth.textContent = count;
+      }
+      
+      // Populate recent submissions table on dashboard
+      const recentTbody = document.getElementById('recentTableBody');
+      if (recentTbody) {
+        const recent = mine.slice(0, 5);
+        if (!recent.length) {
+          recentTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#aaa;padding:32px;">No submissions yet</td></tr>';
+        } else {
+          recentTbody.innerHTML = recent.map(s => `
+            <tr>
+              <td><code style="font-size:12px">${s.ref}</code></td>
+              <td>${s.count} applicants</td>
+              <td>${fmtDate(s.date)}</td>
+              <td>${statusBadge(s.status)}</td>
+            </tr>`).join('');
+        }
+      }
+
+      updatePerfChart(mine);
+    } else {
+      // ADMIN STATS
+      const elATotal = document.getElementById('adminStatTotal');
+      const elAPending = document.getElementById('adminStatPending');
+      const elAPaid = document.getElementById('adminStatPaid');
+      const elAPayout = document.getElementById('adminStatPayout');
+      const elATickets = document.getElementById('adminStatTickets');
+      const elAPartners = document.getElementById('adminStatPartners');
+      
+      const elAHeroPartners = document.getElementById('adminHeroPartners');
+      const elAHeroSubs = document.getElementById('adminHeroSubs');
+      const elAHeroMonth = document.getElementById('adminHeroMonth');
+
+      if (elATotal) elATotal.textContent = DB.submissions.length;
+      if (elAPending) elAPending.textContent = DB.submissions.filter(s => s.status === 'pending').length;
+      
+      if (elAHeroSubs) elAHeroSubs.textContent = DB.submissions.length;
+      if (elAHeroMonth) {
+        const thisMonth = new Date().getMonth();
+        const thisYear = new Date().getFullYear();
+        const count = DB.submissions.filter(s => {
+          const d = new Date(s.date);
+          return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+        }).length;
+        elAHeroMonth.textContent = count;
+      }
+
+      // Fetch Tickets for Admin Count
+      const tktRes = await fetch(`${API_URL}/tickets`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const tickets = await tktRes.json();
+      if (elATickets) elATickets.textContent = tickets.filter(t => t.status === 'open').length;
+
+      // Fetch Partners for Admin Count
+      const partnerRes = await fetch(`${API_URL}/partners`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const partners = await partnerRes.json();
+      if (elAPartners) elAPartners.textContent = partners.length;
+      if (elAHeroPartners) elAHeroPartners.textContent = partners.length;
+      
+      // elAPaid is already declared above via const
+      if (elAPaid) elAPaid.textContent = DB.submissions.filter(s => s.status === 'paid').length;
+      if (elAPayout) {
+        const paidSubmissions = DB.submissions.filter(s => s.status === 'paid');
+        const totalEarned = paidSubmissions.length * 5000;
+        elAPayout.textContent = '₦' + totalEarned.toLocaleString();
+        
+        // Update hero Month for admin (Monthly Earnings)
+        if (elAHeroMonth) {
+          const thisMonth = new Date().getMonth();
+          const thisYear = new Date().getFullYear();
+          const monthlyPaid = paidSubmissions.filter(s => {
+            const d = new Date(s.date);
+            return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+          });
+          const monthlyEarned = monthlyPaid.length * 5000;
+          elAHeroMonth.textContent = '₦' + monthlyEarned.toLocaleString();
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error updating stats:', err);
+  }
+}
+
+/* ══════════════════════════════════
+   ADMIN CLAIMS
+══════════════════════════════════ */
+async function renderAdminClaims() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    let claims = await res.json();
+    DB.submissions = claims; // Cache it
+    
+    // Apply filters
+    const { search, status, month } = DB.adminFilters;
+    
+    if (status) {
+      claims = claims.filter(c => c.status === status);
+    }
+    
+    if (search) {
+      const s = search.toLowerCase();
+      claims = claims.filter(c => 
+        c.ref.toLowerCase().includes(s) || 
+        c.partnerName.toLowerCase().includes(s) || 
+        (c.partnerCode && c.partnerCode.toLowerCase().includes(s))
+      );
+    }
+    
+    if (month) {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      
+      claims = claims.filter(c => {
+        const d = new Date(c.date);
+        if (month === 'current') {
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        } else if (month === 'last') {
+          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+        }
+        return true;
+      });
+    }
+
+    const tbody = document.getElementById('adminClaimsBody');
+    if (!claims.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#aaa;padding:40px">No matching claims found.</td></tr>';
+      return;
+    }
+    
+    tbody.innerHTML = claims.map(s =>
+      `<tr>
+        <td><code style="font-size:12px">${s.ref}</code></td>
+        <td><strong>${s.partnerName || (s.partner && s.partner.name) || s.email || '—'}</strong></td>
+        <td><small style="color:#888">${s.partnerCode || 'N/A'}</small></td>
+        <td>${s.count}</td>
+        <td>
+          ${s.file && s.file !== 'no-file' ? `<a href="${s.file}" target="_blank" class="btn btn-sm btn-outline" style="padding:4px 8px; font-size:11px;">📄 Download</a>` : '<span style="color:#ccc">No file</span>'}
+        </td>
+        <td>${fmtDate(s.date)}</td>
+        <td>${statusBadge(s.status)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="viewClaim('${s.ref}')">View</button>
+        </td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    toast('Failed to load claims', 'error');
+  }
+}
+
+function adminSearch(val) {
+  DB.adminFilters.search = val;
+  renderAdminClaims();
+}
+
+function adminFilterStatus(val) {
+  DB.adminFilters.status = val;
+  renderAdminClaims();
+}
+
+function adminFilterMonth(val) {
+  DB.adminFilters.month = val;
+  renderAdminClaims();
+}
+
+function adminPartnerSearch(val) {
+  DB.adminFilters.partnerSearch = val;
+  renderAdminPartners();
+}
+
+/* ── ADDITIONAL ADMIN LOGIC ── */
+async function renderLeaderboard() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const claims = await res.json();
+
+    // Aggregate stats by partner name directly from the claims sent by users
+    const statsMap = {};
+    claims.forEach(c => {
+      const name = c.partnerName 
+        || (c.partner && typeof c.partner === 'object' ? c.partner.name : null)
+        || c.email
+        || '—';
+
+      if (!statsMap[name]) {
+        statsMap[name] = { name, count: 0, paid: 0, pending: 0 };
+      }
+      statsMap[name].count += (c.count || 0);
+      if (c.status === 'paid') statsMap[name].paid += (c.count || 0);
+      if (c.status === 'pending') statsMap[name].pending += (c.count || 0);
+    });
+
+    // Sort by total claims sent in descending order
+    const sortedPartners = Object.values(statsMap)
+      .sort((a, b) => b.count - a.count);
+
+    // Render main list
+    const listEl = document.getElementById('leaderboardList');
+    if (listEl) {
+      if (!sortedPartners.length) {
+        listEl.innerHTML = '<p style="color:#aaa;text-align:center">No claims submitted yet.</p>';
+      } else {
+        listEl.innerHTML = sortedPartners.map((a, i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border-light)">
+            <span style="font-weight:700;color:var(--gold);width:20px">${i + 1}</span>
+            <div>
+              <div style="font-weight:600">${a.name}</div>
+              <div style="font-size:11px;color:#888">${a.count} Total Applicants &nbsp;·&nbsp; ${a.pending} Pending</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:700;color:var(--navy)">${a.paid}</div>
+              <div style="font-size:10px;color:var(--success)">Paid</div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Render Top 3
+    const top3El = document.getElementById('top3Partners');
+    if (top3El) {
+      const top3 = sortedPartners.slice(0, 3);
+      if (!top3.length) {
+        top3El.innerHTML = '<p style="color:#aaa">No data yet.</p>';
+      } else {
+        const maxCount = top3[0].count || 1;
+        top3El.innerHTML = top3.map(a => `
+          <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:13px;font-weight:600">${a.name}</span>
+              <span style="font-size:13px;font-weight:700">${a.count} applicants</span>
+            </div>
+            <div style="height:6px;background:#eee;border-radius:3px;overflow:hidden">
+              <div style="height:100%;background:var(--gold);width:${Math.min(100, (a.count / maxCount) * 100)}%"></div>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Reward Eligibility (e.g. min 10 total claims sent)
+    const eligibleEl = document.getElementById('rewardEligible');
+    if (eligibleEl) {
+      const eligible = sortedPartners.filter(a => a.count >= 10);
+      if (!eligible.length) {
+        eligibleEl.innerHTML = '<p style="color:#aaa;font-size:12px">No partners qualified yet (Min. 10 claims required).</p>';
+      } else {
+        eligibleEl.innerHTML = eligible.map(a => `
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--success)"></div>
+            <span style="font-size:13px">${a.name} &nbsp;<span style="color:#888;font-size:11px">(${a.count} claims)</span></span>
+          </div>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Leaderboard error:', err);
+  }
+}
+
+async function viewClaim(ref) {
+  const claim = DB.submissions.find(s => s.ref === ref);
+  if (!claim) return toast('Claim not found', 'error');
+
+  const body = document.getElementById('claimModalBody');
+  const footer = document.getElementById('claimModalFooter');
+  
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Reference</div>
+        <div style="font-weight:600">${claim.ref}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Status</div>
+        <div>${statusBadge(claim.status)}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Partner Name</div>
+        <div style="font-weight:600">${claim.partnerName || (claim.partner && claim.partner.name) || claim.email || '—'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Partner Code</div>
+        <div style="font-weight:600">${claim.partnerCode || 'N/A'}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Submitted On</div>
+        <div style="font-weight:600">${fmtDate(claim.date)}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:4px">Applicants Count</div>
+        <div style="font-weight:600;font-size:18px">${claim.count}</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:15px;background:#f9f9f9;border-radius:8px">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:8px">Notes from Partner</div>
+      <div style="font-size:13px">${claim.notes || 'No notes provided.'}</div>
+    </div>
+    ${claim.file && claim.file !== 'no-file' ? `
+    <div style="margin-top:20px">
+      <a href="${claim.file}" target="_blank" class="btn btn-navy" style="width:100%;justify-content:center">📂 Download</a>
+    </div>` : ''}
+  `;
+
+  // Admin controls
+  footer.innerHTML = `
+    <button class="btn btn-outline" onclick="closeModal('claimModal')">Close</button>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-danger" onclick="deleteClaim('${claim.ref}')">Delete</button>
+      ${claim.status === 'pending' ? `
+        <button class="btn btn-danger" style="background:#f44336; color:white" onclick="updateClaimStatus('${claim.ref}', 'rejected')">Reject</button>
+        <button class="btn btn-success" onclick="updateClaimStatus('${claim.ref}', 'paid')">Pay</button>
+      ` : ''}
+    </div>
+  `;
+
+  document.getElementById('claimModal').classList.add('open');
+}
+
+async function deleteClaim(ref) {
+  if (!confirm('Are you sure you want to permanently delete this claim? This cannot be undone.')) return;
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions/${ref}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete failed');
+    
+    toast('Claim deleted successfully', 'success');
+    closeModal('claimModal');
+    renderAdminClaims();
+    updateStats();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function exportData() {
+  const claims = DB.submissions;
+  if (!claims.length) return toast('No data to export', 'info');
+  
+  const headers = ['Reference', 'Partner', 'Code', 'Applicants', 'Date', 'Status'];
+  const rows = claims.map(c => [
+    c.ref,
+    c.partnerName,
+    c.partnerCode || '',
+    c.count,
+    fmtDate(c.date),
+    c.status
+  ]);
+  
+  let csv = headers.join(',') + '\n';
+  rows.forEach(r => {
+    csv += r.join(',') + '\n';
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('hidden', '');
+  a.setAttribute('href', url);
+  a.setAttribute('download', `asasu_claims_export_${today()}.csv`);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/* ══════════════════════════════════
+   ADMIN AGENTS
+══════════════════════════════════ */
+async function renderAdminPartners() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/partners`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    let partners = await res.json();
+    
+    // Apply search filter
+    const search = DB.adminFilters.partnerSearch.toLowerCase();
+    if (search) {
+      partners = partners.filter(a => 
+        (a.name && a.name.toLowerCase().includes(search)) || 
+        (a.email && a.email.toLowerCase().includes(search)) ||
+        (a.partnerCode && a.partnerCode.toLowerCase().includes(search))
+      );
+    }
+
+    const tbody = document.getElementById('partnersTableBody');
+    if (!partners.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:40px">No partners found.</td></tr>';
+      return;
+    }
+
+    // Update the pending count in sidebar
+    const pending = partners.filter(a => a.status === 'pending_approval');
+    document.getElementById('pendingPartnersCount').textContent = pending.length + ' Partners';
+    document.getElementById('partnerApprovalSection').style.display = (pending.length > 0) ? 'block' : 'none';
+
+    tbody.innerHTML = partners.map(a =>
+      `<tr>
+        <td><div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--gold-dim);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${(a.name || 'U').slice(0,1)}</div>
+          ${a.name || a.email || '—'}
+          ${a.status === 'pending_approval' ? '<span class="badge badge-pending" style="font-size:9px">New</span>' : ''}
+        </div></td>
+        <td><code style="font-size:12px">${a.email}</code></td>
+        <td>${statusBadge(a.status)}</td>
+        <td>${a.lastActive ? fmtDate(a.lastActive) : 'Never'}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            ${a.status === 'pending_approval' ? 
+              `<button class="btn btn-gold btn-sm" onclick="updatePartnerStatus('${a._id}', 'active')">Approve</button>` : 
+              `<button class="btn btn-outline btn-sm" onclick="viewPartner('${a._id}')">View</button>`}
+            
+            ${a.status === 'disabled' ? 
+              `<button class="btn btn-sm" style="background:rgba(46,204,154,.1);color:#1a8a6b;border:1px solid rgba(46,204,154,.3)" onclick="updatePartnerStatus('${a._id}', 'active')">Enable</button>` : 
+              `<button class="btn btn-danger btn-sm" onclick="updatePartnerStatus('${a._id}', 'disabled')">Disable</button>`}
+            
+            <button class="btn btn-sm" style="background:rgba(232,75,75,0.1);color:var(--error);border:1px solid rgba(232,75,75,0.2)" onclick="deletePartner('${a._id}')">Delete</button>
+            <button class="btn btn-navy btn-sm" title="Reset Password" onclick="adminResetPassword('${a._id}', '${a.name}')">🔑</button>
+          </div>
+        </td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    toast('Failed to load partners', 'error');
+  }
+}
+
+async function updatePartnerStatus(id, status) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/partners/${id}/status`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) throw new Error('Update failed');
+    toast(`Partner status updated to ${status}`, 'success');
+    renderAdminPartners();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deletePartner(id) {
+  if (!confirm('Are you sure you want to permanently delete this partner? This cannot be undone.')) return;
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/partners/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Delete failed');
+    toast('Partner deleted successfully', 'success');
+    renderAdminPartners();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function adminResetPassword(id, name) {
+  const newPassword = prompt(`Enter new password for ${name}:`);
+  if (!newPassword) return;
+  if (newPassword.length < 6) {
+    toast('Password must be at least 6 characters', 'error');
+    return;
+  }
+
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/partners/${id}/reset-password`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast(data.message, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function downloadPaidClaims() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions/export`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Export failed');
+    
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `paid_claims_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function submitTicket() {
+  const type = document.getElementById('ticketType').value;
+  const partnerId = document.getElementById('ticketPartnerId').value.trim();
+  const email = document.getElementById('ticketEmail').value.trim();
+  const desc = document.getElementById('ticketDescription').value.trim();
+  if (!partnerId || !email || !desc) { toast('Please fill in all fields', 'error'); return; }
+  
+  const token = localStorage.getItem('token');
+  const tId = genTicketId();
+  
+  try {
+    const res = await fetch(`${API_URL}/tickets`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ 
+        ticketId: tId, 
+        partnerName: DB.currentUser,
+        email, 
+        type, 
+        description: desc 
+      })
+    });
+    
+    if (!res.ok) throw new Error('Failed to submit ticket');
+    
+    closeModal('ticketModal');
+    renderTickets();
+    toast('Ticket ' + tId + ' submitted', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function renderTickets() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/tickets`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const myTickets = await res.json();
+    DB.tickets = myTickets; // Update local store
+    
+    const tbody = document.getElementById('ticketsTableBody');
+    if (!myTickets.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:40px">No tickets yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = myTickets.map(t =>
+      `<tr>
+        <td><code style="font-size:12px">${t.ticketId}</code></td>
+        <td>${t.type}</td>
+        <td>${fmtDate(t.createdAt)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="viewTicket('${t.ticketId}')">View</button></td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    console.error('Error loading tickets:', err);
+  }
+}
+
+async function renderAdminTickets() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/tickets`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const tickets = await res.json();
+    
+    const tbody = document.getElementById('adminTicketsBody');
+    if (!tickets.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:40px">No tickets.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = tickets.map(t =>
+      `<tr>
+        <td><code style="font-size:12px">${t.ticketId}</code></td>
+        <td>${t.partnerName || (t.partner && t.partner.name) || t.email || '—'}</td>
+        <td>${t.type}</td>
+        <td>${fmtDate(t.createdAt)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" onclick="viewTicket('${t.ticketId}')">View</button>
+            ${t.status==='open' ? `<button class="btn btn-sm" style="background:rgba(46,204,154,.1);color:#1a8a6b;border:1px solid rgba(46,204,154,.3)" onclick="resolveTicket('${t._id}')">Resolve</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="deleteTicket('${t._id}')">Del</button>
+          </div>
+        </td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    console.error('Error loading admin tickets:', err);
+  }
+}
+
+async function resolveTicket(id) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/tickets/${id}/resolve`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Failed to resolve ticket');
+    renderAdminTickets();
+    toast('Ticket resolved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteTicket(id) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/tickets/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Failed to delete ticket');
+    renderAdminTickets();
+    toast('Ticket deleted');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* ══════════════════════════════════
+   CLAIM DETAIL MODAL
+══════════════════════════════════ */
+async function updateClaimStatus(ref, status) {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions/${ref}/status`, {
+      method: 'PATCH',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ status })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    
+    toast(`Claim ${ref} updated to ${status}`, 'success');
+    renderAdminClaims();
+    updateStats();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+function viewClaim(ref) {
+  const s = DB.submissions.find(s => s.ref === ref);
+  if (!s) return;
+  document.getElementById('claimModalTitle').textContent = 'Claim ' + ref;
+  const fields = [
+    ['Reference', s.ref], ['Partner Name', s.partnerName], ['Partner Code', s.partnerCode],
+    ['Email', s.email], ['Applicants', s.count], ['File', s.file],
+    ['File Size', s.fileSize], ['Submitted', fmtDate(s.date)], ['Status', s.status],
+    ['Notes', s.notes || 'None']
+  ];
+  document.getElementById('claimModalBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      ${fields.map(([k,v]) => `
+        <div style="padding:12px;background:var(--off-white);border-radius:8px;border:1px solid var(--border-light)">
+          <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${k}</div>
+          <div style="font-size:14px;font-weight:500;color:var(--navy)">
+            ${k==='Status' ? statusBadge(v) : (k==='File' && v !== 'no-file' ? `<a href="${v}" target="_blank" style="color:var(--gold);text-decoration:none">📄 Download</a>` : v)}
+          </div>
+        </div>`
+      ).join('')}
+    </div>`;
+
+  const footer = document.getElementById('claimModalFooter');
+  if (DB.currentRole === 'admin') {
+    footer.innerHTML = `
+      <button class="btn btn-outline" onclick="closeModal('claimModal')">Close</button>
+      ${s.status==='pending' ? `<button class="btn btn-sm" style="background:rgba(46,204,154,.1);color:#1a8a6b;border:1px solid rgba(46,204,154,.3)" onclick="updateClaimStatus('${ref}','paid');closeModal('claimModal')">Pay</button>` : ''}
+      <button class="btn btn-danger btn-sm" onclick="deleteClaim('${ref}');closeModal('claimModal')">Delete</button>`;
+  }
+  document.getElementById('claimModal').classList.add('open');
+}
+
+async function submitClaim() {
+  const confirmed = confirm("WARNING: Attempting to claim another person’s commission, or trying to take credit for a client referred by someone else, will be thoroughly investigated and may result in legal action. Do you wish to proceed?");
+  if (!confirmed) return;
+
+  const token = localStorage.getItem('token');
+  const count = document.getElementById('sub_count')?.value || 0;
+  const notes = document.getElementById('sub_notes')?.value || '';
+  const fileInput = document.getElementById('fileInput');
+  
+  if (!fileInput?.files[0]) {
+    toast('Please select an Excel file', 'error');
+    return;
+  }
+
+  try {
+    const btn = document.getElementById('submitFinalBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Submitting...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    const claimRef = genRef();
+    formData.append('ref', claimRef);
+    formData.append('partnerCode', DB.partnerCode || 'N/A'); 
+    formData.append('partnerName', DB.currentUser);
+    formData.append('email', DB.currentEmail);
+    formData.append('count', count);
+    formData.append('notes', notes);
+    formData.append('file', fileInput.files[0]);
+
+    const res = await fetch(`${API_URL}/submissions`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+
+    if (!res.ok) throw new Error(data.error || 'Submission failed');
+
+    toast('Claim submitted successfully!', 'success');
+    
+    // Switch to success view instead of just history
+    document.getElementById('submitStep3').style.display = 'none';
+    const successView = document.getElementById('submitSuccess');
+    if (successView) {
+      successView.style.display = 'block';
+      document.getElementById('successRef').textContent = claimRef;
+      
+      // Update steps to show completion
+      document.getElementById('step3-item').classList.add('done');
+    } else {
+      showSection('history');
+    }
+    
+    updateStats();
+  } catch (err) {
+    const btn = document.getElementById('submitFinalBtn');
+    if (btn) {
+      btn.innerHTML = '📤 Submit Commission Claim';
+      btn.disabled = false;
+    }
+    toast(err.message, 'error');
+  }
+}
+
+async function renderHistory() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/submissions`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const submissions = await res.json();
+    
+    const tbody = document.getElementById('historyTableBody');
+    if (!submissions.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:40px">No submissions found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = submissions.map(s =>
+      `<tr>
+        <td><code style="font-size:12px">${s.ref}</code></td>
+        <td>${s.count} applicants</td>
+        <td>${fmtDate(s.date)}</td>
+        <td>${statusBadge(s.status)}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="viewClaim('${s.ref}')">View</button></td>
+      </tr>`
+    ).join('');
+  } catch (err) {
+    console.error('Error loading history:', err);
+  }
+}
+
+/* ══════════════════════════════════
+   BROADCAST
+══════════════════════════════════ */
+async function sendBroadcast() {
+  const subject = document.getElementById('broadcastSubject').value.trim();
+  const msg = document.getElementById('broadcastMessage').value.trim();
+  if (!subject || !msg) { toast('Please fill in subject and message', 'error'); return; }
+
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/broadcasts`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ title: subject, message: msg, type: 'info' })
+    });
+    if (!res.ok) throw new Error('Failed to send broadcast');
+    
+    document.getElementById('broadcastSubject').value = '';
+    document.getElementById('broadcastMessage').value = '';
+    toast('Broadcast sent to all partners', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function renderAdminDashboard() {
+  // Load real broadcasts/activity
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/broadcasts`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const broadcasts = await res.json();
+    const log = document.getElementById('activityLog');
+    if (broadcasts.length) {
+      log.innerHTML = broadcasts.map(b =>
+        `<div class="activity-item">
+          <div class="activity-dot blue"></div>
+          <div>
+            <div class="activity-text"><b>Broadcast:</b> ${b.title}</div>
+            <div class="activity-time">${fmtDate(b.createdAt)}</div>
+          </div>
+        </div>`
+      ).join('');
+    }
+  } catch (err) {
+    console.error('Error loading admin dash:', err);
+  }
+
+  const monthly = document.getElementById('monthlyBars');
+  const months = ['Jan','Feb','Mar','Apr','May'];
+  const counts = [12, 18, 24, 45, DB.submissions.length || 32];
+  const maxC = Math.max(...counts);
+  monthly.innerHTML = `<div style="display:flex;align-items:flex-end;gap:12px;height:120px;padding:0 8px">
+    ${months.map((m,i) => `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <div style="font-size:12px;font-weight:700;color:var(--navy)">${counts[i]}</div>
+        <div style="width:100%;height:${Math.round(counts[i]/maxC*80)}px;background:${i===4?'var(--gold)':'var(--navy)'};border-radius:4px 4px 0 0;opacity:${i===4?1:0.5};transition:all .3s"></div>
+        <div style="font-size:11px;color:#888">${m}</div>
+      </div>`
+    ).join('')}
+  </div>`;
+  updateStats();
+}
+
+async function sendSpecific() {
+  const partnerIdentifier = document.getElementById('specificPartnerId').value.trim();
+  const msg = document.getElementById('specificMessage').value.trim();
+  if (!partnerIdentifier || !msg) { toast('Please fill in Partner Email and message', 'error'); return; }
+  
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch(`${API_URL}/broadcasts/specific`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ identifier: partnerIdentifier, message: msg })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to send message');
+
+    document.getElementById('specificPartnerId').value = '';
+    document.getElementById('specificMessage').value = '';
+    toast('Message sent to ' + partnerIdentifier, 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+/* ══════════════════════════════════
+   KEYBOARD SHORTCUTS
+══════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  }
+});
+</script>
+</body>
+</html>

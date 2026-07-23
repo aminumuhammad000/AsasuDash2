@@ -1,0 +1,431 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE
+  OPERATIONS
+  AUDITOR
+  SUPPORT
+  BRANCH_ADMIN
+  AGENT
+  SUB_DEVELOPER
+}
+
+enum ScheduleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ImportStatus {
+  UPLOADED
+  MAPPED
+  VALIDATED
+  PUBLISHED
+  FAILED
+}
+
+enum ClaimStatus {
+  PENDING_VERIFICATION
+  NEEDS_REVIEW
+  INFO_REQUESTED
+  PARTIALLY_APPROVED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ClaimItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum TicketStatus {
+  OPEN
+  WAITING
+  RESOLVED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+model Organization {
+  id           String            @id @default(cuid())
+  name         String
+  slug         String            @unique
+  active       Boolean           @default(true)
+  branches     Branch[]
+  users        User[]
+  importJobs   ImportJob[]
+  schedules    PaymentSchedule[]
+  claims       Claim[]
+  disputes     Dispute[]
+  payments     Payment[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Branch {
+  id             String            @id @default(cuid())
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  name           String
+  code           String
+  active         Boolean           @default(true)
+  users          User[]
+  schedules      PaymentSchedule[]
+  claims         Claim[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, active])
+}
+
+model User {
+  id                  String          @id @default(cuid())
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId      String
+  branch              Branch?         @relation(fields: [branchId], references: [id])
+  branchId            String?
+  name                String
+  email               String
+  passwordHash        String
+  role                Role
+  agency              String
+  phone               String?
+  payoutBankName      String?
+  payoutAccountName   String?
+  payoutAccountNumber String?
+  commissionRateBps   Int?
+  active              Boolean         @default(true)
+  claims              Claim[]
+  tickets             Ticket[]
+  notifications       Notification[]
+  payments            Payment[]
+  disputesRaised      Dispute[]        @relation("DisputeRaisedBy")
+  disputesAgainst     Dispute[]        @relation("DisputeAgainstUser")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([organizationId, email])
+  @@index([organizationId, role, active])
+  @@index([branchId, active])
+}
+
+model ImportJob {
+  id                 String          @id @default(cuid())
+  organization       Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId     String
+  uploadedById       String
+  sourceFileName     String
+  sourceFileKey      String?
+  fileChecksum       String
+  status             ImportStatus
+  detectedHeaderRow  Int?
+  detectedColumns    Json
+  warnings           Json
+  errorMessage       String?
+  schedule           PaymentSchedule?
+  createdAt          DateTime        @default(now())
+  completedAt        DateTime?
+
+  @@unique([organizationId, fileChecksum])
+  @@index([organizationId, status, createdAt])
+}
+
+model PaymentSchedule {
+  id                 String                 @id @default(cuid())
+  organization       Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId     String
+  branch             Branch                 @relation(fields: [branchId], references: [id])
+  branchId           String
+  importJob           ImportJob              @relation(fields: [importJobId], references: [id])
+  importJobId         String                 @unique
+  title               String
+  scheduleNumber      String
+  bankName            String
+  paymentDate         DateTime               @db.Date
+  sourceFileName      String
+  fingerprint         String
+  status              ScheduleStatus         @default(DRAFT)
+  totalRsaAmount      Decimal                @db.Decimal(18, 2)
+  totalServiceCharge  Decimal                @db.Decimal(18, 2)
+  uploadedById        String
+  publishedAt         DateTime?
+  archivedAt          DateTime?
+  entries             PaymentScheduleEntry[]
+  claims              Claim[]
+  disputes            Dispute[]
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@unique([organizationId, scheduleNumber])
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, status, paymentDate])
+  @@index([branchId, status, paymentDate])
+}
+
+model PaymentScheduleEntry {
+  id                        String          @id @default(cuid())
+  schedule                  PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleId                String
+  sourceSheet               String
+  sourceRowNumber           Int
+  serialNumber              String?
+  accountNo                 String?
+  applicationNumber         String?
+  clientName                String
+  normalizedClientName      String
+  rsaAmount                 Decimal         @db.Decimal(18, 2)
+  paymentDate               DateTime?       @db.Date
+  threePercentServiceCharge Decimal?        @db.Decimal(18, 2)
+  onePercentServiceCharge   Decimal?        @db.Decimal(18, 2)
+  twoPercentServiceCharge   Decimal?        @db.Decimal(18, 2)
+  netAmount                 Decimal?        @db.Decimal(18, 2)
+  rawRow                     Json
+  claimItems                ClaimItem[]
+  activeLock                ClaimLock?
+  disputes                  Dispute[]
+  createdAt                 DateTime        @default(now())
+
+  @@unique([scheduleId, sourceSheet, sourceRowNumber])
+  @@index([scheduleId, normalizedClientName])
+  @@index([scheduleId, accountNo])
+  @@index([scheduleId, applicationNumber])
+}
+
+model Claim {
+  id                  String        @id @default(cuid())
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId      String
+  user                User          @relation(fields: [userId], references: [id])
+  userId              String
+  branch              Branch        @relation(fields: [branchId], references: [id])
+  branchId            String
+  schedule            PaymentSchedule @relation(fields: [scheduleId], references: [id])
+  scheduleId          String
+  reference           String
+  status              ClaimStatus
+  commissionRateBps   Int
+  matchScore          Int
+  totalRsaAmount      Decimal       @db.Decimal(18, 2)
+  totalServiceCharge  Decimal       @db.Decimal(18, 2)
+  commissionAmount    Decimal       @db.Decimal(18, 2)
+  totalPayable        Decimal       @db.Decimal(18, 2)
+  items               ClaimItem[]
+  locks               ClaimLock[]
+  messages            ClaimMessage[]
+  payment             Payment?
+  paidAt              DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status, createdAt])
+  @@index([userId, status, createdAt])
+  @@index([scheduleId, status])
+}
+
+model ClaimItem {
+  id                  String               @id @default(cuid())
+  claim               Claim                @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId             String
+  scheduleEntry       PaymentScheduleEntry @relation(fields: [scheduleEntryId], references: [id])
+  scheduleEntryId     String
+  status              ClaimItemStatus      @default(PENDING)
+  rsaAmountSnapshot   Decimal              @db.Decimal(18, 2)
+  commissionRateBps   Int
+  commissionAmount    Decimal              @db.Decimal(18, 2)
+  matchScore          Int                  @default(100)
+  comparisonNotes     Json
+  lock                ClaimLock?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@unique([claimId, scheduleEntryId])
+  @@index([scheduleEntryId, status])
+}
+
+// The primary-keyed schedule entry is the database-level duplicate-claim guard.
+// Rejected/transferred items release this row inside the same serializable transaction.
+model ClaimLock {
+  scheduleEntry       PaymentScheduleEntry @relation(fields: [scheduleEntryId], references: [id], onDelete: Cascade)
+  scheduleEntryId     String               @id
+  claim               Claim                @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId             String
+  claimItem           ClaimItem            @relation(fields: [claimItemId], references: [id], onDelete: Cascade)
+  claimItemId         String               @unique
+  acquiredAt          DateTime             @default(now())
+
+  @@index([claimId])
+}
+
+model ClaimMessage {
+  id         String   @id @default(cuid())
+  claim      Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  claimId    String
+  senderId   String
+  senderName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([claimId, createdAt])
+}
+
+model Dispute {
+  id                String               @id @default(cuid())
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId    String
+  schedule          PaymentSchedule      @relation(fields: [scheduleId], references: [id])
+  scheduleId        String
+  scheduleEntry     PaymentScheduleEntry @relation(fields: [scheduleEntryId], references: [id])
+  scheduleEntryId   String
+  raisedBy          User                 @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+  raisedById        String
+  againstUser       User                 @relation("DisputeAgainstUser", fields: [againstUserId], references: [id])
+  againstUserId     String
+  againstClaimId    String
+  reference         String
+  reason            String
+  evidenceNote      String?
+  evidenceObjectKey String?
+  status            DisputeStatus        @default(OPEN)
+  resolution        String?
+  messages          DisputeMessage[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, status, createdAt])
+  @@index([scheduleEntryId, status])
+  @@index([raisedById, status])
+}
+
+model DisputeMessage {
+  id         String   @id @default(cuid())
+  dispute    Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  disputeId  String
+  senderId   String
+  senderName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+model Payment {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  claim          Claim        @relation(fields: [claimId], references: [id])
+  claimId        String       @unique
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  amount         Decimal      @db.Decimal(18, 2)
+  reference      String
+  provider       String?
+  providerRef    String?
+  payoutBankName      String?
+  payoutAccountName   String?
+  payoutAccountNumber String?
+  paidById       String
+  paidAt         DateTime     @default(now())
+
+  @@unique([organizationId, reference])
+  @@index([organizationId, paidAt])
+  @@index([userId, paidAt])
+}
+
+model Notification {
+  id          String              @id @default(cuid())
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  channel     NotificationChannel @default(IN_APP)
+  eventKey    String
+  title       String
+  body        String
+  readAt      DateTime?
+  deliveredAt DateTime?
+  failedAt    DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([channel, deliveredAt, failedAt])
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  actorId        String
+  actorName      String
+  action         String
+  entityType     String
+  entityId       String
+  detail         String
+  before         Json?
+  after          Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, entityType, entityId, createdAt])
+  @@index([organizationId, actorId, createdAt])
+}
+
+model Ticket {
+  id          String         @id @default(cuid())
+  user        User           @relation(fields: [userId], references: [id])
+  userId      String
+  subject     String
+  description String
+  priority    TicketPriority
+  status      TicketStatus
+  replies     TicketReply[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, priority, createdAt])
+  @@index([userId, status])
+}
+
+model TicketReply {
+  id         String   @id @default(cuid())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId   String
+  authorId   String
+  authorName String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+}
