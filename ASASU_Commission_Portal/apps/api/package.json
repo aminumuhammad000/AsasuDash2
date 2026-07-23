@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts --sourcemap --out-dir dist --external socket.io",
-    "start": "node dist/index.js",
+    "build": "tsup src/index.ts --format esm --dts --sourcemap --out-dir ../../dist --external socket.io",
+    "start": "node ../../dist/index.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
