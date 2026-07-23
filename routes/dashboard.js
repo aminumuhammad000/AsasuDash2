@@ -56,16 +56,37 @@ router.get('/', auth, async (req, res) => {
       updatedAt: t.updatedAt ? t.updatedAt.toISOString() : t.createdAt ? t.createdAt.toISOString() : new Date().toISOString()
     });
 
+    let submissions = [];
+    if (req.user.role === 'admin') {
+      submissions = await Submission.find().sort({ createdAt: -1 }).lean();
+    } else {
+      submissions = await Submission.find({ partner: req.user.id }).sort({ createdAt: -1 }).lean();
+    }
+
+    const mapClaim = (s) => ({
+      id: s._id.toString(),
+      reference: s.ref,
+      userId: s.partner?.toString(),
+      submitterName: s.partnerName,
+      status: (s.status || 'pending').toUpperCase(),
+      createdAt: s.date ? new Date(s.date).toISOString() : new Date().toISOString(),
+      updatedAt: s.date ? new Date(s.date).toISOString() : new Date().toISOString(),
+      clientCount: s.count,
+      totalPayable: 0, // Mock for now
+      totalPaid: 0,
+      messages: []
+    });
+
     res.json({
       user: publicUser(current),
       users: all.map(publicUser),
-      claims: [],
+      claims: submissions.map(mapClaim),
       schedule: null,
       payments: [],
       tickets: tickets.map(mapTicket),
       notifications: [],
       trends: [],
-      metrics: {},
+      metrics: { totalClaims: submissions.length, totalTickets: tickets.length },
       auditLog: []
     });
   } catch (err) {
