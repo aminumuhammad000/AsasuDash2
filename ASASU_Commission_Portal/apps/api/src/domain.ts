@@ -206,7 +206,7 @@ export function buildQuarterlyLeaderboards(
 
     const entries = eligibleUsers.map((partner) => {
       const partnerClaims = claims.filter((claim) => {
-        const performanceDate = claim.paidAt ?? claim.updatedAt;
+        const performanceDate = claim.paidAt ?? claim.updatedAt ?? claim.createdAt;
         return claim.userId === partner.id && qualifiedStatuses.includes(claim.status) && inPeriod(performanceDate);
       });
       const approvedItems = partnerClaims.flatMap((claim) =>

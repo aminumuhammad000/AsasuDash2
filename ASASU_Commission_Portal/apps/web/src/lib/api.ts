@@ -4,8 +4,14 @@ export const API_ROOT = import.meta.env.VITE_API_URL ?? "/api";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(error?.message ?? `Request failed with ${response.status}`);
+    const text = await response.text().catch(() => "");
+    let error: { message?: string } | null = null;
+    try {
+      error = JSON.parse(text);
+    } catch {
+      // response was HTML or raw text
+    }
+    throw new Error(error?.message ?? `Server error (${response.status}): ${response.statusText || "Request failed"}`);
   }
   return response.json() as Promise<T>;
 }
