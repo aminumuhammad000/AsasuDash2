@@ -76,7 +76,9 @@ const evidenceUpload = multer({
   }
 });
 const uploadRoot = path.resolve(moduleRoot, "../uploads/disputes");
-const webDistRoot = path.resolve(moduleRoot, "../../web/dist");
+const webDistRoot = fs.existsSync(path.resolve(moduleRoot, "../../web/dist"))
+  ? path.resolve(moduleRoot, "../../web/dist")
+  : path.resolve(moduleRoot, "../dist");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
