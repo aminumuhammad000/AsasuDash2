@@ -261,26 +261,26 @@ function Portal() {
   const staff = isStaff(user);
   const navigation: Array<{ id: ViewId; label: string; icon: typeof LayoutDashboard; badge?: number }> = staff
     ? [
-        { id: "overview", label: "Command center", icon: LayoutDashboard },
-        { id: "claims", label: "Claim queue", icon: FileCheck2, badge: payload?.metrics.totalClaimsPending },
-        { id: "schedules", label: "Schedules", icon: FileSpreadsheet },
-        { id: "disputes", label: "Disputes", icon: Gavel, badge: payload?.metrics.openDisputes },
-        { id: "payments", label: "Payments", icon: CreditCard },
-        { id: "support", label: "Support tickets", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
-        { id: "people", label: "People", icon: Users },
-        { id: "audit", label: "Audit trail", icon: History },
-        { id: "leaderboard", label: "Leaderboard", icon: Trophy }
-      ]
+      { id: "overview", label: "Command center", icon: LayoutDashboard },
+      { id: "claims", label: "Claim queue", icon: FileCheck2, badge: payload?.metrics.totalClaimsPending },
+      { id: "schedules", label: "Schedules", icon: FileSpreadsheet },
+      { id: "disputes", label: "Disputes", icon: Gavel, badge: payload?.metrics.openDisputes },
+      { id: "payments", label: "Payments", icon: CreditCard },
+      { id: "support", label: "Support tickets", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
+      { id: "people", label: "People", icon: Users },
+      { id: "audit", label: "Audit trail", icon: History },
+      { id: "leaderboard", label: "Leaderboard", icon: Trophy }
+    ]
     : [
-        { id: "overview", label: "Home", icon: LayoutDashboard },
-        { id: "claim", label: "Quick claim", icon: Zap, badge: payload?.metrics.availableClients },
-        { id: "claims", label: "My claims", icon: ReceiptText },
-        { id: "schedules", label: "Schedules", icon: FileSpreadsheet },
-        { id: "disputes", label: "Disputes", icon: Gavel },
-        { id: "payments", label: "Payment history", icon: WalletCards },
-        { id: "support", label: "Support center", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
-        { id: "leaderboard", label: "Leaderboard", icon: Trophy }
-      ];
+      { id: "overview", label: "Home", icon: LayoutDashboard },
+      { id: "claim", label: "Quick claim", icon: Zap, badge: payload?.metrics.availableClients },
+      { id: "claims", label: "My claims", icon: ReceiptText },
+      { id: "schedules", label: "Schedules", icon: FileSpreadsheet },
+      { id: "disputes", label: "Disputes", icon: Gavel },
+      { id: "payments", label: "Payment history", icon: WalletCards },
+      { id: "support", label: "Support center", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
+      { id: "leaderboard", label: "Leaderboard", icon: Trophy }
+    ];
 
   const unread = payload?.notifications.filter((item) => !item.read).length ?? 0;
   function navigate(view: ViewId) {
