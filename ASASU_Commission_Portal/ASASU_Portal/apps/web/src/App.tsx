@@ -24,6 +24,7 @@ import {
   Clock3,
   Command,
   CreditCard,
+  Crown,
   Download,
   FileCheck2,
   FileSpreadsheet,
@@ -36,11 +37,10 @@ import {
   Loader2,
   LockKeyhole,
   LogOut,
+  Medal,
   Menu,
   MessageSquare,
   Moon,
-  Eye,
-  EyeOff,
   Phone,
   Plus,
   ReceiptText,
@@ -50,6 +50,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Trophy,
   UploadCloud,
   UserRound,
   Users,
@@ -71,13 +72,17 @@ import type {
   TicketStatus,
   User
 } from "@asasu/shared";
-import { apiRequest, downloadFile, uploadFile } from "./lib/api";
+import { apiRequest, uploadFile } from "./lib/api";
 import { currency, dateTime, number, titleCase } from "./lib/format";
 import { useSession } from "./hooks/useSession";
 
 type ViewId = "overview" | "claim" | "claims" | "schedules" | "disputes" | "payments" | "support" | "leaderboard" | "people" | "audit";
 
-// demo accounts removed to enforce real server authentication
+const sampleAccounts = [
+  { role: "Administrator", email: "admin@asasurealty.com", password: "Admin@2026", initials: "AD" },
+  { role: "Agent", email: "agent@asasurealty.com", password: "Agent@2026", initials: "AG" },
+  { role: "Sub-developer", email: "developer@asasurealty.com", password: "Developer@2026", initials: "SD" }
+];
 
 const staffRoles = new Set(["SUPER_ADMIN", "ADMIN", "FINANCE", "OPERATIONS", "AUDITOR", "SUPPORT", "BRANCH_ADMIN"]);
 const pendingStatuses: ClaimStatus[] = ["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED", "PARTIALLY_APPROVED"];
@@ -119,8 +124,9 @@ export default function App() {
 
 function LoginScreen() {
   const login = useSession((state) => state.login);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [account, setAccount] = useState(sampleAccounts[0]!);
+  const [email, setEmail] = useState(account.email);
+  const [password, setPassword] = useState(account.password);
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -129,10 +135,8 @@ function LoginScreen() {
     event.preventDefault();
     setLoading(true);
     setError("");
-    const trimmedEmail = email.trim().toLowerCase();
-    const trimmedPassword = password.trim();
     try {
-      await login(trimmedEmail, trimmedPassword);
+      await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {
@@ -140,7 +144,12 @@ function LoginScreen() {
     }
   }
 
-  // demo chooser intentionally disabled in development to force real authentication
+  function choose(next: (typeof sampleAccounts)[number]) {
+    setAccount(next);
+    setEmail(next.email);
+    setPassword(next.password);
+    setError("");
+  }
 
   return (
     <main className="login-page">
@@ -162,8 +171,8 @@ function LoginScreen() {
             <small>20 Jul 2026</small>
           </div>
           <div className="preview-kpis">
-            <div><small>Claims verified</small><strong>—</strong><span>Real data after login</span></div>
-            <div><small>Commission cleared</small><strong>—</strong><span>Real data after login</span></div>
+            <div><small>Claims verified</small><strong>94.8%</strong><span>↑ 6.2% this month</span></div>
+            <div><small>Commission cleared</small><strong>₦48.2m</strong><span>Across 326 partners</span></div>
           </div>
           <div className="preview-flow">
             <span className="flow-step done"><Check size={13} /> Schedule</span><i />
@@ -203,7 +212,14 @@ function LoginScreen() {
             {loading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
             {loading ? "Verifying…" : "Enter workspace"}
           </button>
-          {/* demo accounts removed to enforce server authentication */}
+          <div className="demo-divider"><span>Explore demo roles</span></div>
+          <div className="role-switcher">
+            {sampleAccounts.map((item) => (
+              <button type="button" key={item.email} className={email === item.email ? "active" : ""} onClick={() => choose(item)}>
+                <span>{item.initials}</span><small>{item.role}</small>
+              </button>
+            ))}
+          </div>
           <p className="login-security"><ShieldCheck size={13} /> Protected by encrypted, role-based access</p>
         </form>
       </section>
@@ -226,14 +242,7 @@ function Portal() {
       setPayload(await apiRequest<DashboardPayload>(token, "/dashboard"));
       setError("");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unable to load the workspace";
-      const lower = msg.toLowerCase();
-      if (lower.includes('access denied') || lower.includes('invalid token') || lower.includes('no token') || lower.includes('unauthorized')) {
-        // token is invalid or session expired — force logout to show login screen
-        logout();
-        return;
-      }
-      setError(msg);
+      setError(err instanceof Error ? err.message : "Unable to load the workspace");
     }
   }
 
@@ -630,20 +639,7 @@ function ActivityFeed({ payload }: { payload: DashboardPayload }) {
 }
 
 function ScheduleSummary({ schedule }: { schedule: NonNullable<DashboardPayload["schedule"]> }) {
-  return (
-    <div className="schedule-summary">
-      <div className="schedule-file-icon"><FileSpreadsheet size={23} /></div>
-      <div className="schedule-primary"><strong>{schedule.title}</strong><span>{schedule.scheduleNumber}</span></div>
-      <div><small>Branch</small><strong>{schedule.branch}</strong></div>
-      <div><small>Payment date</small><strong>{dateOnly(schedule.paymentDate)}</strong></div>
-      <div><small>Paid clients</small><strong>{number(schedule.entryCount)}</strong></div>
-      <div><small>RSA value</small><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></div>
-      {schedule.sourceFileUrl ? (
-        <div className="schedule-source-link"><small>Source file</small><a href={schedule.sourceFileUrl} target="_blank" rel="noreferrer">Download workbook</a></div>
-      ) : null}
-      <StatusBadge value={schedule.status} />
-    </div>
-  );
+  return <div className="schedule-summary"><div className="schedule-file-icon"><FileSpreadsheet size={23} /></div><div className="schedule-primary"><strong>{schedule.title}</strong><span>{schedule.scheduleNumber}</span></div><div><small>Branch</small><strong>{schedule.branch}</strong></div><div><small>Payment date</small><strong>{dateOnly(schedule.paymentDate)}</strong></div><div><small>Paid clients</small><strong>{number(schedule.entryCount)}</strong></div><div><small>RSA value</small><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></div><StatusBadge value={schedule.status} /></div>;
 }
 
 function Signal({ tone, title, copy, value }: { tone: string; title: string; copy: string; value: string }) {
@@ -905,7 +901,6 @@ function ClaimRows({ claims, empty }: { claims: Claim[]; empty: string }) {
 
 function SchedulesPanel({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
   const staff = isStaff(payload.user);
-  const schedules = payload.schedules ?? [];
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ScheduleImportPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -949,7 +944,7 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
 
       <section className="panel table-panel">
         <PanelHeading eyebrow={staff ? "Schedule management" : "Published schedules"} title={staff ? "Schedule library" : "Your payment schedules"} aside={!staff && payload.schedule ? <button className="button button-primary button-small" onClick={() => navigate("claim")}>Quick claim <ArrowRight size={14} /></button> : null} />
-        <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Schedule</th><th>Branch</th><th>Payment date</th><th>Clients</th><th className="numeric">RSA value</th><th>Status</th><th>Published</th><th /></tr></thead><tbody>{schedules.map((schedule) => <tr key={schedule.id}><td><div className="file-cell"><span><FileSpreadsheet size={18} /></span><div><strong>{schedule.title}</strong><small>{schedule.scheduleNumber}</small></div></div></td><td>{schedule.branch}</td><td>{dateOnly(schedule.paymentDate)}</td><td>{number(schedule.entryCount)}</td><td className="numeric"><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></td><td><StatusBadge value={schedule.status} /></td><td>{dateTime(schedule.publishedAt ?? schedule.uploadedAt)}</td><td>{schedule.status === "PUBLISHED" && !staff ? <button className="table-action" onClick={() => navigate("claim")}>View <ArrowRight size={13} /></button> : <button className="icon-button tiny"><Command size={14} /></button>}</td></tr>)}</tbody></table>{!schedules.length ? <EmptyState icon={FileSpreadsheet} title="No schedules yet" copy="Your first uploaded payment schedule will appear here." /> : null}</div>
+        <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Schedule</th><th>Branch</th><th>Payment date</th><th>Clients</th><th className="numeric">RSA value</th><th>Status</th><th>Published</th><th /></tr></thead><tbody>{payload.schedules.map((schedule) => <tr key={schedule.id}><td><div className="file-cell"><span><FileSpreadsheet size={18} /></span><div><strong>{schedule.title}</strong><small>{schedule.scheduleNumber}</small></div></div></td><td>{schedule.branch}</td><td>{dateOnly(schedule.paymentDate)}</td><td>{number(schedule.entryCount)}</td><td className="numeric"><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></td><td><StatusBadge value={schedule.status} /></td><td>{dateTime(schedule.publishedAt ?? schedule.uploadedAt)}</td><td>{schedule.status === "PUBLISHED" && !staff ? <button className="table-action" onClick={() => navigate("claim")}>View <ArrowRight size={13} /></button> : <button className="icon-button tiny"><Command size={14} /></button>}</td></tr>)}</tbody></table>{!payload.schedules.length ? <EmptyState icon={FileSpreadsheet} title="No schedules yet" copy="Your first uploaded payment schedule will appear here." /> : null}</div>
       </section>
     </div>
   );
@@ -957,7 +952,6 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
 
 function DisputesPanel({ payload, token, refresh }: { payload: DashboardPayload; token: string; refresh: () => Promise<void> }) {
   const staff = isStaff(payload.user);
-  const disputes = payload.disputes ?? [];
   const [selected, setSelected] = useState<Dispute | null>(null);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState("");
@@ -971,8 +965,8 @@ function DisputesPanel({ payload, token, refresh }: { payload: DashboardPayload;
   }
   return (
     <div className="page-stack">
-      <section className="page-heading-row"><div><span className="eyebrow">Ownership control</span><h2>{staff ? "Resolve client ownership with a complete trail." : "A fair process when ownership is unclear."}</h2><p>{staff ? "Review evidence, notify both parties, and transfer the schedule lock when required." : "File from the claimed client row and follow every decision here."}</p></div><div className="dispute-stat"><Gavel size={18} /><span>Open cases<strong>{disputes.filter((item) => ["OPEN", "UNDER_REVIEW"].includes(item.status)).length}</strong></span></div></section>
-      <section className="panel table-panel"><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dispute</th><th>Client</th>{staff ? <><th>Raised by</th><th>Against</th></> : null}<th>Reason</th><th>Status</th><th>Created</th><th /></tr></thead><tbody>{disputes.map((dispute) => <tr key={dispute.id}><td><strong>{dispute.reference}</strong><small>{dispute.evidenceFileName ? "Evidence attached" : "Text evidence"}</small></td><td><strong>{dispute.clientName}</strong></td>{staff ? <><td>{dispute.raisedByName}</td><td>{dispute.againstUserName}</td></> : null}<td><span className="truncate-copy">{dispute.reason}</span></td><td><StatusBadge value={dispute.status} /></td><td>{dateTime(dispute.createdAt)}</td><td><button className="table-action" onClick={() => { setSelected(dispute); setNote(dispute.resolution ?? ""); }}>Open <ArrowRight size={13} /></button></td></tr>)}</tbody></table>{!disputes.length ? <EmptyState icon={Gavel} title="No disputes" copy={staff ? "New ownership cases will appear here immediately." : "You have no active ownership disputes."} /> : null}</div></section>
+      <section className="page-heading-row"><div><span className="eyebrow">Ownership control</span><h2>{staff ? "Resolve client ownership with a complete trail." : "A fair process when ownership is unclear."}</h2><p>{staff ? "Review evidence, notify both parties, and transfer the schedule lock when required." : "File from the claimed client row and follow every decision here."}</p></div><div className="dispute-stat"><Gavel size={18} /><span>Open cases<strong>{payload.disputes.filter((item) => ["OPEN", "UNDER_REVIEW"].includes(item.status)).length}</strong></span></div></section>
+      <section className="panel table-panel"><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dispute</th><th>Client</th>{staff ? <><th>Raised by</th><th>Against</th></> : null}<th>Reason</th><th>Status</th><th>Created</th><th /></tr></thead><tbody>{payload.disputes.map((dispute) => <tr key={dispute.id}><td><strong>{dispute.reference}</strong><small>{dispute.evidenceFileName ? "Evidence attached" : "Text evidence"}</small></td><td><strong>{dispute.clientName}</strong></td>{staff ? <><td>{dispute.raisedByName}</td><td>{dispute.againstUserName}</td></> : null}<td><span className="truncate-copy">{dispute.reason}</span></td><td><StatusBadge value={dispute.status} /></td><td>{dateTime(dispute.createdAt)}</td><td><button className="table-action" onClick={() => { setSelected(dispute); setNote(dispute.resolution ?? ""); }}>Open <ArrowRight size={13} /></button></td></tr>)}</tbody></table>{!payload.disputes.length ? <EmptyState icon={Gavel} title="No disputes" copy={staff ? "New ownership cases will appear here immediately." : "You have no active ownership disputes."} /> : null}</div></section>
       {selected ? <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><div className="modal-card case-modal"><div className="modal-heading"><span className="modal-icon violet"><Gavel size={19} /></span><div><span>{selected.reference}</span><h3>{selected.clientName}</h3></div><button onClick={() => setSelected(null)}><X size={18} /></button></div><div className="case-parties"><div><small>Raised by</small><strong>{selected.raisedByName}</strong></div><ArrowRight size={16} /><div><small>Current claimant</small><strong>{selected.againstUserName}</strong></div></div><div className="case-reason"><span>Claimant statement</span><p>{selected.reason}</p>{selected.evidenceNote ? <><span>Evidence note</span><p>{selected.evidenceNote}</p></> : null}</div>{staff ? <><label className="field-label"><span>Resolution note</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain the decision for both parties…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="modal-actions wrap"><button className="button button-secondary" onClick={() => action("review")} disabled={Boolean(loading)}>Under review</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(loading)}>Reject dispute</button><button className="button button-primary" onClick={() => action("transfer")} disabled={Boolean(loading)}>{loading === "transfer" ? <Loader2 className="spin" size={15} /> : <ArrowRight size={15} />} Transfer claim</button></div></> : <div className="case-resolution"><StatusBadge value={selected.status} />{selected.resolution ? <p>{selected.resolution}</p> : <p>Operations will notify both parties when a decision is made.</p>}</div>}</div></div> : null}
     </div>
   );
@@ -1090,7 +1084,7 @@ function PaymentsPanel({ payload, token, refresh }: { payload: DashboardPayload;
 
   return (
     <div className="page-stack">
-      <section className="payment-hero"><div><span className="eyebrow">Settlement ledger</span><h2>{currency(total)}</h2><p>{staff ? "Total commission payments recorded in this workspace." : "Total commission paid to your account."}</p></div>{staff ? <button className="button button-secondary" onClick={async () => { try { await downloadFile(token, "/payments/export.csv", "asasu-payment-log.csv"); } catch (err) { console.error(err); } }}><Download size={16} /> Export payment log</button> : <span className="payment-protected"><ShieldCheck size={16} /> Reconciled ledger</span>}</section>
+      <section className="payment-hero"><div><span className="eyebrow">Settlement ledger</span><h2>{currency(total)}</h2><p>{staff ? "Total commission payments recorded in this workspace." : "Total commission paid to your account."}</p></div>{staff ? <a className="button button-secondary" href="/api/payments/export.csv"><Download size={16} /> Export payment log</a> : <span className="payment-protected"><ShieldCheck size={16} /> Reconciled ledger</span>}</section>
       {!staff ? <section className="panel payout-account-panel"><PanelHeading eyebrow="Payment destination" title="Bank account & phone" aside={payload.user.paymentAccount && payload.user.phone ? <span className="success-chip"><Check size={12} /> Details on file</span> : <span className="soft-chip">Required for payout</span>} /><p className="payout-account-copy">Add the account and phone number ASASU should use for approved commission payments. Administrators see these details only when preparing your settlement.</p><form className="payout-account-form" onSubmit={savePaymentAccount}><div className="payout-account-fields"><label className="field-label"><span>Bank name</span><input value={bankName} onChange={(event) => setBankName(event.target.value)} placeholder="e.g. Access Bank" minLength={2} maxLength={80} required /></label><label className="field-label"><span>Account name</span><input value={accountName} onChange={(event) => setAccountName(event.target.value)} placeholder="Name shown by your bank" minLength={2} maxLength={100} required /></label><label className="field-label"><span>Account number</span><input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" inputMode="numeric" pattern="[0-9]{10}" maxLength={10} required /></label><label className="field-label"><span>Phone number</span><input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="e.g. +234 800 000 0000" minLength={7} maxLength={24} required /></label></div>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}{message ? <div className="form-success"><CheckCircle2 size={15} />{message}</div> : null}<div className="payout-form-actions"><span><ShieldCheck size={14} /> Stored for commission settlement</span><button className="button button-primary" disabled={saving || accountNumber.length !== 10 || phone.trim().length < 7}>{saving ? <Loader2 className="spin" size={16} /> : <Landmark size={16} />} {saving ? "Saving…" : "Save payment details"}</button></div></form></section> : null}
       <section className="panel table-panel"><PanelHeading eyebrow="Transactions" title="Payment history" aside={<span className="soft-chip">{payments.length} records</span>} /><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Reference</th><th>Recipient</th>{staff ? <th>Payout details</th> : null}<th>Claim</th><th className="numeric">Amount</th><th>Paid at</th><th>Status</th></tr></thead><tbody>{payments.map((payment) => { const recipient = payload.users?.find((user) => user.id === payment.userId); const account = payment.paymentAccount ?? recipient?.paymentAccount; const recipientPhone = payment.recipientPhone ?? recipient?.phone; return <tr key={payment.id}><td><code>{payment.reference}</code></td><td><strong>{payment.recipientName}</strong></td>{staff ? <td>{account ? <div className="payment-account-cell"><strong>{account.bankName}</strong><small>{account.accountNumber} · {account.accountName}</small>{recipientPhone ? <small className="payment-phone"><Phone size={10} />{recipientPhone}</small> : null}</div> : "—"}</td> : null}<td>{payment.claimId}</td><td className="numeric"><strong>{currency(payment.amount)}</strong></td><td>{dateTime(payment.paidAt)}</td><td><span className="entry-status available"><Check size={12} /> Settled</span></td></tr>; })}</tbody></table>{!payments.length ? <EmptyState icon={Banknote} title="No payments yet" copy="Settled commission payments will appear here." /> : null}</div></section>
     </div>

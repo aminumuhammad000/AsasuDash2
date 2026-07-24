@@ -175,13 +175,6 @@ export function buildTrends(user: User, claims: Claim[]): TrendPoint[] {
   });
 }
 
-export function scheduleTotals(entries: PaymentScheduleEntry[]) {
-  return {
-    totalRsaAmount: roundCurrency(entries.reduce((sum, entry) => sum + entry.rsaAmount, 0)),
-    totalServiceCharge: roundCurrency(entries.reduce((sum, entry) => sum + (entry.onePercentServiceCharge ?? entry.serviceCharge ?? 0), 0))
-  };
-}
-
 export function buildQuarterlyLeaderboards(
   users: User[],
   claims: Claim[],
@@ -253,4 +246,11 @@ export function buildQuarterlyLeaderboards(
       subDevelopers: ranked("SUB_DEVELOPER")
     };
   });
+}
+
+export function scheduleTotals(entries: PaymentScheduleEntry[]) {
+  return {
+    totalRsaAmount: roundCurrency(entries.reduce((sum, entry) => sum + entry.rsaAmount, 0)),
+    totalServiceCharge: roundCurrency(entries.reduce((sum, entry) => sum + (entry.onePercentServiceCharge ?? entry.serviceCharge ?? 0), 0))
+  };
 }

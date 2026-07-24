@@ -1,0 +1,24 @@
+{
+  "name": "asasu-realty-commission-portal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c yellow,cyan \"npm run dev -w @asasu/api\" \"npm run dev -w @asasu/web\"",
+    "build": "npm run build -w @asasu/api && npm run build -w @asasu/web",
+    "typecheck": "npm run typecheck -w @asasu/api && npm run typecheck -w @asasu/web",
+    "lint": "npm run typecheck",
+    "start": "npm run start -w @asasu/api"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  }
+}

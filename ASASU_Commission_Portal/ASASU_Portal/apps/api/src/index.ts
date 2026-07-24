@@ -1,7 +1,5 @@
-import dotenv from "dotenv";
 import http from "node:http";
-import fs from "node:fs";
-import fsPromises from "node:fs/promises";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
@@ -10,7 +8,6 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
 import { Server } from "socket.io";
-import { v2 as cloudinary } from "cloudinary";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type {
@@ -45,13 +42,6 @@ import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook } from "./
 import { openApiSpec } from "./openapi.js";
 import { JsonStore } from "./store.js";
 
-dotenv.config();
-const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
-const rootEnvPath = path.resolve(moduleRoot, "../../../../.env");
-if (!process.env.CLOUDINARY_API_KEY && fs.existsSync(rootEnvPath)) {
-  dotenv.config({ path: rootEnvPath });
-}
-
 const app = express();
 const server = http.createServer(app);
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4300);
@@ -75,14 +65,9 @@ const evidenceUpload = multer({
     else callback(new Error("Evidence must be a PNG, JPG, WEBP, or PDF file."));
   }
 });
+const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
 const uploadRoot = path.resolve(moduleRoot, "../uploads/disputes");
 const webDistRoot = path.resolve(moduleRoot, "../../web/dist");
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
 
 const io = new Server(server, { cors: { origin: corsOrigin, credentials: true } });
 io.on("connection", (socket) => {
@@ -306,22 +291,6 @@ app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleMa
   if (!request.file) return void response.status(400).json({ message: "Upload an Excel or CSV file" });
   const schedule = await parseScheduleWorkbook(request.file.buffer, request.user!, request.body.title, request.file.originalname);
   if (!schedule.entries.length) return void response.status(422).json({ message: "No schedule rows found. Expected account name and RSA amount columns." });
-
-  try {
-    const dataUri = `data:${request.file.mimetype};base64,${request.file.buffer.toString("base64")}`;
-    const uploadResult = await cloudinary.uploader.upload(dataUri, {
-      folder: "asasu/payment_schedules",
-      resource_type: "raw",
-      public_id: `payment_schedule_${schedule.scheduleNumber}_${Date.now()}`,
-      use_filename: true,
-      unique_filename: true
-    });
-    schedule.sourceFileUrl = uploadResult.secure_url;
-    schedule.sourceFileId = uploadResult.public_id;
-  } catch (error) {
-    console.error("Cloudinary upload failed:", error);
-    return void response.status(500).json({ message: "Unable to store the uploaded schedule file." });
-  }
 
   let duplicate = false;
   await store.mutate((data) => {
@@ -556,8 +525,8 @@ app.post("/api/disputes", requireAuth, evidenceUpload.single("evidence"), async 
     if (request.file) {
       const extension = request.file.mimetype === "application/pdf" ? ".pdf" : request.file.mimetype === "image/png" ? ".png" : request.file.mimetype === "image/webp" ? ".webp" : ".jpg";
       evidenceFileKey = `evidence_${nanoid(12)}${extension}`;
-      await fsPromises.mkdir(uploadRoot, { recursive: true });
-      await fsPromises.writeFile(path.join(uploadRoot, evidenceFileKey), request.file.buffer, { flag: "wx" });
+      await fs.mkdir(uploadRoot, { recursive: true });
+      await fs.writeFile(path.join(uploadRoot, evidenceFileKey), request.file.buffer, { flag: "wx" });
     }
     dispute = {
       id: `dsp_${nanoid(10)}`,

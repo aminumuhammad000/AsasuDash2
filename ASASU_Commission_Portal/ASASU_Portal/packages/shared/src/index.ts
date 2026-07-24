@@ -80,8 +80,6 @@ export interface PaymentSchedule {
   bankName: string;
   paymentDate: string;
   sourceFileName?: string;
-  sourceFileUrl?: string;
-  sourceFileId?: string;
   status: ScheduleStatus;
   uploadedBy: string;
   uploadedAt: string;
@@ -307,7 +305,7 @@ export interface DashboardPayload {
   user: User;
   metrics: DashboardMetrics;
   trends: TrendPoint[];
-  leaderboards?: QuarterlyLeaderboard[];
+  leaderboards: QuarterlyLeaderboard[];
   claims: Claim[];
   tickets: Ticket[];
   disputes: Dispute[];
