@@ -55,7 +55,10 @@ import {
   Users,
   WalletCards,
   X,
-  Zap
+  Zap,
+  Trophy,
+  Medal,
+  Crown
 } from "lucide-react";
 import type {
   Claim,
