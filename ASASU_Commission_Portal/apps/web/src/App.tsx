@@ -226,7 +226,10 @@ function Portal() {
   async function refresh() {
     if (!token) return;
     try {
-      setPayload(await apiRequest<DashboardPayload>(token, "/dashboard"));
+      const data = await apiRequest<DashboardPayload>(token, "/dashboard");
+      if (Array.isArray(data.claims)) data.claims.forEach((c) => { c.items = c.items || []; });
+      if (Array.isArray(data.tickets)) data.tickets.forEach((t) => { t.replies = t.replies || []; });
+      setPayload(data);
       setError("");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unable to load the workspace";
