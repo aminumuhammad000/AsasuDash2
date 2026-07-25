@@ -1,19 +1,50 @@
-import type { AuthUser } from "@asasu/shared";
+import { useSession } from "../hooks/useSession";
 
 export const API_ROOT = import.meta.env.VITE_API_URL ?? "/api";
 
 async function parseResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    let error: { message?: string } | null = null;
-    try {
-      error = JSON.parse(text);
-    } catch {
-      // response was HTML or raw text
+  const contentType = response.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+
+  let text = "";
+  let jsonBody: any = null;
+
+  try {
+    text = await response.text();
+    if (text && (isJson || text.trim().startsWith("{") || text.trim().startsWith("["))) {
+      jsonBody = JSON.parse(text);
     }
-    throw new Error(error?.message ?? `Server error (${response.status}): ${response.statusText || "Request failed"}`);
+  } catch {
+    // text was not valid JSON
   }
-  return response.json() as Promise<T>;
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      const msg = jsonBody?.message || "Your session has expired. Please log in again.";
+      useSession.getState().logout(msg);
+      throw new Error(msg);
+    }
+
+    if (jsonBody?.message) {
+      throw new Error(jsonBody.message);
+    }
+
+    if (text.trim().startsWith("<")) {
+      throw new Error(`Server returned HTML response (${response.status}). Please check backend API server.`);
+    }
+
+    throw new Error(text.trim() || `Request failed with status ${response.status}`);
+  }
+
+  if (jsonBody !== null) {
+    return jsonBody as T;
+  }
+
+  if (text.trim().startsWith("<")) {
+    throw new Error("Server returned HTML document instead of data. Check API proxy or server config.");
+  }
+
+  return text as unknown as T;
 }
 
 export async function apiRequest<T>(token: string | undefined, path: string, options: RequestInit = {}) {
