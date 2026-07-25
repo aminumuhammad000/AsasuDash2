@@ -309,20 +309,21 @@ app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleMa
   const schedule = await parseScheduleWorkbook(request.file.buffer, request.user!, request.body.title, request.file.originalname);
   if (!schedule.entries.length) return void response.status(422).json({ message: "No schedule rows found. Expected account name and RSA amount columns." });
 
-  try {
-    const dataUri = `data:${request.file.mimetype};base64,${request.file.buffer.toString("base64")}`;
-    const uploadResult = await cloudinary.uploader.upload(dataUri, {
-      folder: "asasu/payment_schedules",
-      resource_type: "raw",
-      public_id: `payment_schedule_${schedule.scheduleNumber}_${Date.now()}`,
-      use_filename: true,
-      unique_filename: true
-    });
-    schedule.sourceFileUrl = uploadResult.secure_url;
-    schedule.sourceFileId = uploadResult.public_id;
-  } catch (error) {
-    console.error("Cloudinary upload failed:", error);
-    return void response.status(500).json({ message: "Unable to store the uploaded schedule file." });
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+    try {
+      const dataUri = `data:${request.file.mimetype};base64,${request.file.buffer.toString("base64")}`;
+      const uploadResult = await cloudinary.uploader.upload(dataUri, {
+        folder: "asasu/payment_schedules",
+        resource_type: "raw",
+        public_id: `payment_schedule_${schedule.scheduleNumber}_${Date.now()}`,
+        use_filename: true,
+        unique_filename: true
+      });
+      schedule.sourceFileUrl = uploadResult.secure_url;
+      schedule.sourceFileId = uploadResult.public_id;
+    } catch (error) {
+      console.warn("Cloudinary upload skipped or failed:", error);
+    }
   }
 
   let duplicate = false;
