@@ -124,6 +124,7 @@ export default function App() {
 
 function LoginScreen() {
   const login = useSession((state) => state.login);
+  const expiredNotification = useSession((state) => state.expiredNotification);
   const [account, setAccount] = useState(sampleAccounts[0]!);
   const [email, setEmail] = useState(account.email);
   const [password, setPassword] = useState(account.password);
@@ -195,6 +196,11 @@ function LoginScreen() {
             <h2>Welcome back</h2>
             <p>Use your ASASU partner or operations account.</p>
           </div>
+          {expiredNotification ? (
+            <div className="form-error" style={{ background: "rgba(234, 179, 8, 0.1)", color: "var(--amber-700, #b45309)", borderColor: "rgba(234, 179, 8, 0.3)" }}>
+              <CircleAlert size={15} /> {expiredNotification}
+            </div>
+          ) : null}
           <label className="field-label">
             <span>Work email</span>
             <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />

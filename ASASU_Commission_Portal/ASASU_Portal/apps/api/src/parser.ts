@@ -112,25 +112,41 @@ function scheduleNumber(branch: string, paymentDate: string) {
 }
 
 async function workbookRows(buffer: Buffer, filename = "") {
-  if (filename.toLowerCase().endsWith(".csv")) {
-    const rows = parseCsv(buffer.toString("utf8"), {
+  const isCsvFile = filename.toLowerCase().endsWith(".csv");
+  const isXlsxHeader = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04;
+  const isCompoundFileHeader = buffer.length >= 8 && buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+
+  if (isCsvFile && !isXlsxHeader && !isCompoundFileHeader) {
+    const text = buffer.toString("utf8");
+    if (text.trim().startsWith("<")) {
+      throw new Error("Invalid file format. The uploaded file appears to be HTML instead of an Excel spreadsheet or CSV.");
+    }
+    const rows = parseCsv(text, {
       skip_empty_lines: false,
       relax_column_count: true
     }) as Cell[][];
     return [{ sheetName: "CSV Upload", rows }];
   }
 
-  const workbook = new ExcelJS.Workbook();
-  const excelInput = buffer as unknown as Parameters<typeof workbook.xlsx.load>[0];
-  await workbook.xlsx.load(excelInput);
-  return workbook.worksheets.map((worksheet) => {
-    const rows: Cell[][] = [];
-    worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-      rows[rowNumber - 1] = values.map(unwrapCell);
+  try {
+    const workbook = new ExcelJS.Workbook();
+    const excelInput = buffer as unknown as Parameters<typeof workbook.xlsx.load>[0];
+    await workbook.xlsx.load(excelInput);
+    return workbook.worksheets.map((worksheet) => {
+      const rows: Cell[][] = [];
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+        rows[rowNumber - 1] = values.map(unwrapCell);
+      });
+      return { sheetName: worksheet.name, rows };
     });
-    return { sheetName: worksheet.name, rows };
-  });
+  } catch (err) {
+    const textPreview = buffer.toString("utf8", 0, 100).trim();
+    if (textPreview.startsWith("<")) {
+      throw new Error("Invalid file format. The uploaded file is an HTML page or document, not an Excel workbook.");
+    }
+    throw new Error(err instanceof Error ? err.message : "Failed to parse Excel workbook.");
+  }
 }
 
 export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, title?: string, filename?: string): Promise<PaymentSchedule> {

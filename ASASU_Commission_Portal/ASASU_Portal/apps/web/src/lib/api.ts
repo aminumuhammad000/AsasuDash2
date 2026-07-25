@@ -4,6 +4,12 @@ export const API_ROOT = import.meta.env.VITE_API_URL ?? "/api";
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    if (response.status === 401) {
+      const error = (await response.json().catch(() => null)) as { message?: string } | null;
+      const msg = error?.message || "Your session has expired. Please sign in again.";
+      useSession.getState().logout(msg);
+      throw new Error(msg);
+    }
     const error = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new Error(error?.message ?? `Request failed with ${response.status}`);
   }
