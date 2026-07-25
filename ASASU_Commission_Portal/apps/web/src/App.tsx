@@ -326,7 +326,7 @@ function Portal() {
         <div className="sidebar-user">
           <span className="user-avatar">{user.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}</span>
           <div><strong>{user.name}</strong><small>{titleCase(user.role)}</small></div>
-          <button onClick={logout} title="Sign out"><LogOut size={17} /></button>
+          <button onClick={() => logout()} title="Sign out"><LogOut size={17} /></button>
         </div>
       </aside>
 

@@ -1,3 +1,4 @@
+import type { AuthUser } from "@asasu/shared";
 import { useSession } from "../hooks/useSession";
 
 export const API_ROOT = import.meta.env.VITE_API_URL ?? "/api";
