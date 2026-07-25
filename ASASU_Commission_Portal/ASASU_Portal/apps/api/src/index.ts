@@ -678,6 +678,11 @@ app.get("/api/payments/export.csv", requireAuth, requireRole("SUPER_ADMIN", "ADM
   response.attachment("asasu-payment-log.csv").send(csv);
 });
 
+// Fallback for unmatched API routes to ensure JSON is returned instead of static HTML fallback
+app.all("/api/*", (_request, response) => {
+  response.status(404).json({ message: "API endpoint not found" });
+});
+
 // A production build is served by the API process so the portal can deploy as one service.
 app.use(express.static(webDistRoot));
 app.use((request, response, next) => {
