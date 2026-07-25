@@ -1,18 +1,43 @@
 import type { AuthUser } from "@asasu/shared";
+import { useSession } from "../hooks/useSession";
 
 export const API_ROOT = import.meta.env.VITE_API_URL ?? "/api";
 
 async function parseResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("application/json");
+
   if (!response.ok) {
     if (response.status === 401) {
-      const error = (await response.json().catch(() => null)) as { message?: string } | null;
-      const msg = error?.message || "Your session has expired. Please sign in again.";
+      let msg = "Your session has expired. Please sign in again.";
+      if (isJson) {
+        const error = (await response.json().catch(() => null)) as { message?: string } | null;
+        if (error?.message) msg = error.message;
+      }
       useSession.getState().logout(msg);
       throw new Error(msg);
     }
-    const error = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(error?.message ?? `Request failed with ${response.status}`);
+
+    if (isJson) {
+      const error = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(error?.message ?? `Request failed with status ${response.status}`);
+    }
+
+    const text = await response.text().catch(() => "");
+    if (text.trim().startsWith("<")) {
+      throw new Error(`Server endpoint error (${response.status}). HTML page returned instead of JSON.`);
+    }
+    throw new Error(text || `Request failed with status ${response.status}`);
   }
+
+  if (!isJson) {
+    const text = await response.text().catch(() => "");
+    if (text.trim().startsWith("<")) {
+      throw new Error("Server returned HTML response instead of JSON data. Check backend URL or server status.");
+    }
+    return text as unknown as T;
+  }
+
   return response.json() as Promise<T>;
 }
 
