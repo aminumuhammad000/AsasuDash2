@@ -80,6 +80,21 @@ import { useSession } from "./hooks/useSession";
 
 type ViewId = "overview" | "claim" | "claims" | "schedules" | "disputes" | "payments" | "support" | "leaderboard" | "people" | "audit";
 
+type LocalSchedulePreview = {
+  fileName: string;
+  headerRowIndex: number;
+  detectedFields: {
+    branch?: string;
+    paymentDate?: string;
+    clientName?: string;
+    accountNumber?: string;
+    rsaAmount?: string;
+  };
+  detectedColumns: string[];
+  warnings: string[];
+  sampleRows: Array<Record<string, string>>;
+};
+
 // demo accounts removed to enforce real server authentication
 
 const staffRoles = new Set(["SUPER_ADMIN", "ADMIN", "FINANCE", "OPERATIONS", "AUDITOR", "SUPPORT", "BRANCH_ADMIN"]);
@@ -103,6 +118,150 @@ function shortCurrency(value = 0) {
 
 function BrandMark({ inverse = false }: { inverse?: boolean }) {
   return <span className={`brand-mark ${inverse ? "brand-mark-inverse" : ""}`}><img src="/asasu-realty-official-logo.jpeg" alt="" /></span>;
+}
+
+function normalizeHeader(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function findHeaderColumn(headerRow: string[], targets: string[]) {
+  const learned = headerRow.map(normalizeHeader);
+  const exactMatch = targets.map(normalizeHeader);
+  for (const target of exactMatch) {
+    const index = learned.findIndex((cell) => cell === target);
+    if (index >= 0) return index;
+  }
+  for (const target of exactMatch) {
+    const index = learned.findIndex((cell) => cell.includes(target));
+    if (index >= 0) return index;
+  }
+  return -1;
+}
+
+let xlsxLoader: Promise<any> | null = null;
+
+async function loadXlsx(): Promise<any> {
+  if (typeof window === "undefined") {
+    throw new Error("Excel parsing is only supported in the browser.");
+  }
+  if ((window as any).XLSX) {
+    return (window as any).XLSX;
+  }
+  if (xlsxLoader) {
+    return xlsxLoader;
+  }
+
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js",
+    "https://unpkg.com/xlsx/dist/xlsx.full.min.js"
+  ];
+  const existing = document.querySelector<HTMLScriptElement>("script[data-xlsx-loader]");
+  if (existing && !(window as any).XLSX) {
+    existing.remove();
+  }
+
+  xlsxLoader = new Promise((resolve, reject) => {
+    const attemptLoad = (index: number) => {
+      if (index >= urls.length) {
+        reject(new Error("Unable to load Excel parser library."));
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = urls[index] as string;
+      script.async = true;
+      script.dataset.xlsxLoader = "true";
+      script.onload = () => {
+        if ((window as any).XLSX) {
+          resolve((window as any).XLSX);
+        } else {
+          if (index + 1 < urls.length) {
+            script.remove();
+            attemptLoad(index + 1);
+          } else {
+            reject(new Error("Failed to initialize XLSX library."));
+          }
+        }
+      };
+      script.onerror = () => {
+        script.remove();
+        attemptLoad(index + 1);
+      };
+      document.head.appendChild(script);
+    };
+
+    attemptLoad(0);
+  });
+
+  return xlsxLoader;
+}
+
+async function parseWorkbook(file: File): Promise<LocalSchedulePreview> {
+  const XLSX: any = await loadXlsx();
+  const data = await file.arrayBuffer();
+  const workbook = XLSX.read(data, { type: "array", cellDates: true, dateNF: "yyyy-mm-dd" });
+  if (!workbook.SheetNames?.length) {
+    throw new Error("Spreadsheet does not contain any sheets.");
+  }
+  const sheet = workbook.Sheets?.[workbook.SheetNames[0]];
+  if (!sheet) {
+    throw new Error("Unable to read the first worksheet.");
+  }
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: "" }) as any[][];
+  if (!rows.length) {
+    throw new Error("Spreadsheet is empty.");
+  }
+
+  const normalized = rows.map((row: any[] = []) => Array.isArray(row) ? row.map((cell: any) => String(cell ?? "").trim()) : []);
+  const headerRowIndex = normalized.findIndex((row) => row.some((cell) => normalizeHeader(cell).length > 0));
+  if (headerRowIndex < 0) {
+    throw new Error("No header row found in the spreadsheet.");
+  }
+
+  const headerRow = normalized[headerRowIndex] ?? [];
+  const detectedColumns = headerRow.filter(Boolean).map((cell: string) => String(cell).trim());
+  const branchCol = findHeaderColumn(headerRow, ["branch", "office", "location", "region"]);
+  const dateCol = findHeaderColumn(headerRow, ["payment date", "paymentdate", "date", "due date", "settlement date", "pay date"]);
+  const clientNameCol = findHeaderColumn(headerRow, ["client name", "customer name", "name", "borrower"]);
+  const accountNumberCol = findHeaderColumn(headerRow, ["account number", "account no", "acct number", "acct no", "account"]);
+  const rsaAmountCol = findHeaderColumn(headerRow, ["rsa amount", "rsa", "amount", "rsa value", "value", "committed amount"]);
+
+  const sampleRows: Array<Record<string, string>> = [];
+  for (let rowIndex = headerRowIndex + 1; rowIndex < Math.min(normalized.length, headerRowIndex + 7); rowIndex += 1) {
+    const row = normalized[rowIndex] ?? [];
+    if (!Array.isArray(row) || row.every((cell) => !cell)) continue;
+    sampleRows.push({
+      Branch: branchCol >= 0 ? String(row[branchCol] ?? "") : "",
+      Date: dateCol >= 0 ? String(row[dateCol] ?? "") : "",
+      "Client name": clientNameCol >= 0 ? String(row[clientNameCol] ?? "") : "",
+      "Account number": accountNumberCol >= 0 ? String(row[accountNumberCol] ?? "") : "",
+      "RSA amount": rsaAmountCol >= 0 ? String(row[rsaAmountCol] ?? "") : "",
+    });
+  }
+
+  const warnings: string[] = [];
+  if (branchCol < 0) warnings.push("Could not detect a branch column.");
+  if (dateCol < 0) warnings.push("Could not detect a payment date column.");
+  if (clientNameCol < 0) warnings.push("Could not detect a client name column.");
+  if (accountNumberCol < 0) warnings.push("Could not detect an account number column.");
+  if (rsaAmountCol < 0) warnings.push("Could not detect an RSA amount column.");
+  if (!sampleRows.length) warnings.push("No data rows were found after the header row.");
+
+  return {
+    fileName: file.name,
+    headerRowIndex,
+    detectedFields: {
+      branch: branchCol >= 0 ? headerRow[branchCol] : undefined,
+      paymentDate: dateCol >= 0 ? headerRow[dateCol] : undefined,
+      clientName: clientNameCol >= 0 ? headerRow[clientNameCol] : undefined,
+      accountNumber: accountNumberCol >= 0 ? headerRow[accountNumberCol] : undefined,
+      rsaAmount: rsaAmountCol >= 0 ? headerRow[rsaAmountCol] : undefined,
+    },
+    detectedColumns,
+    warnings,
+    sampleRows,
+  };
 }
 
 export default function App() {
@@ -913,24 +1072,34 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
   const staff = isStaff(payload.user);
   const schedules = payload.schedules ?? [];
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ScheduleImportPreview | null>(null);
+  const [filePreview, setFilePreview] = useState<LocalSchedulePreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function inspect() {
-    if (!file) return;
-    setLoading(true); setMessage("");
-    try { setPreview(await uploadFile<ScheduleImportPreview>(token, "/payment-schedules/preview", file)); }
-    catch (err) { setMessage(err instanceof Error ? err.message : "Unable to inspect workbook"); }
-    finally { setLoading(false); }
+  async function handleFile(fileToParse: File | null) {
+    setFile(fileToParse);
+    setFilePreview(null);
+    setMessage("");
+    if (!fileToParse) return;
+
+    setLoading(true);
+    try {
+      const preview = await parseWorkbook(fileToParse);
+      setFilePreview(preview);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to inspect workbook");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function publish() {
     if (!file) return;
     setLoading(true); setMessage("");
     try {
-      await uploadFile(token, "/payment-schedules/upload", file);
-      setFile(null); setPreview(null); setMessage("Schedule published. Every active agent has been notified.");
+      const title = filePreview?.fileName ? `Published schedule · ${filePreview.fileName}` : undefined;
+      await uploadFile(token, "/payment-schedules/upload", file, { title: title ?? "Published schedule" });
+      setFile(null); setFilePreview(null); setMessage("Schedule published. Every active agent has been notified.");
       await refresh();
     } catch (err) { setMessage(err instanceof Error ? err.message : "Unable to publish schedule"); }
     finally { setLoading(false); }
@@ -942,13 +1111,69 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
         <section className="schedule-upload-layout">
           <div className="panel upload-card">
             <PanelHeading eyebrow="Smart importer" title="Publish a payment schedule" aside={<span className="ai-badge"><Sparkles size={13} /> Auto-map</span>} />
-            <label className={`drop-zone ${file ? "has-file" : ""}`}><input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => { setFile(event.target.files?.[0] ?? null); setPreview(null); setMessage(""); }} />{file ? <><span className="file-orb"><FileSpreadsheet size={23} /></span><div><strong>{file.name}</strong><small>{(file.size / 1024).toFixed(0)} KB · Ready to inspect</small></div><button type="button" onClick={(event) => { event.preventDefault(); setFile(null); setPreview(null); }}><X size={16} /></button></> : <><span className="upload-orb"><UploadCloud size={25} /></span><div><strong>Drop your Excel schedule here</strong><small>Headers may start on any row. Leading zeroes and formulas are preserved.</small></div><span className="button button-secondary button-small">Choose file</span></>}</label>
-            {!preview ? <button className="button button-primary inspect-button" disabled={!file || loading} onClick={inspect}>{loading ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />} Inspect & map workbook</button> : null}
+            <label className={`drop-zone ${file ? "has-file" : ""}`}><input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => { handleFile(event.target.files?.[0] ?? null); }} />{file ? <><span className="file-orb"><FileSpreadsheet size={23} /></span><div><strong>{file.name}</strong><small>{(file.size / 1024).toFixed(0)} KB · Ready to inspect</small></div><button type="button" onClick={(event) => { event.preventDefault(); handleFile(null); }}><X size={16} /></button></> : <><span className="upload-orb"><UploadCloud size={25} /></span><div><strong>Drop your Excel schedule here</strong><small>Headers may start on any row. Leading zeroes and formulas are preserved.</small></div><span className="button button-secondary button-small">Choose file</span></>}</label>
+            <button className="button button-primary inspect-button" disabled={!file || loading} onClick={() => file && handleFile(file)}>{loading ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />} Inspect workbook</button>
             {message ? <div className={`inline-message ${message.startsWith("Schedule") ? "success" : "error"}`}>{message.startsWith("Schedule") ? <CheckCircle2 size={15} /> : <CircleAlert size={15} />}{message}</div> : null}
           </div>
           <div className="panel import-preview-card">
-            <PanelHeading eyebrow="Import preview" title={preview ? "Mapping complete" : "Waiting for a workbook"} aside={preview ? <span className="success-chip"><Check size={13} /> Ready</span> : null} />
-            {preview ? <><div className="import-meta"><div><small>Schedule no.</small><strong>{preview.schedule.scheduleNumber}</strong></div><div><small>Branch</small><strong>{preview.schedule.branch}</strong></div><div><small>Payment date</small><strong>{dateOnly(preview.schedule.paymentDate)}</strong></div><div><small>Rows found</small><strong>{number(preview.schedule.entryCount)}</strong></div></div><div className="mapped-columns"><span>Mapped columns</span><div>{preview.detectedColumns.map((column) => <em key={column}><Check size={11} />{column}</em>)}</div></div>{preview.warnings.length ? <div className="import-warnings"><CircleAlert size={15} /><div><strong>{preview.warnings.length} review note{preview.warnings.length === 1 ? "" : "s"}</strong>{preview.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div></div> : <div className="import-clean"><ShieldCheck size={16} /><div><strong>No blocking issues</strong><p>Amounts and identity columns passed validation.</p></div></div>}<div className="publish-row"><div><span>Total RSA value</span><strong>{currency(preview.schedule.totalRsaAmount)}</strong></div><button className="button button-primary" onClick={publish} disabled={loading}>{loading ? <Loader2 className="spin" size={16} /> : <Zap size={16} />} Publish & notify agents</button></div></> : <div className="preview-placeholder"><span><FileSpreadsheet size={27} /></span><strong>Automatic column intelligence</strong><p>We’ll detect the header row, branch, date, client name, account number, RSA amount, and commission columns.</p><div><em>Duplicate accounts</em><em>Missing amounts</em><em>Formula values</em></div></div>}
+            <PanelHeading eyebrow="Import preview" title={filePreview ? "Mapping complete" : "Waiting for a workbook"} aside={filePreview ? <span className="success-chip"><Check size={13} /> Ready</span> : null} />
+            {filePreview ? <>
+              <div className="import-meta">
+                <div><small>Header row</small><strong>Row {filePreview.headerRowIndex + 1}</strong></div>
+                <div><small>Detected branch</small><strong>{filePreview.detectedFields.branch ?? "Missing"}</strong></div>
+                <div><small>Detected date</small><strong>{filePreview.detectedFields.paymentDate ?? "Missing"}</strong></div>
+                <div><small>Detected client name</small><strong>{filePreview.detectedFields.clientName ?? "Missing"}</strong></div>
+                <div><small>Detected account number</small><strong>{filePreview.detectedFields.accountNumber ?? "Missing"}</strong></div>
+                <div><small>Detected RSA amount</small><strong>{filePreview.detectedFields.rsaAmount ?? "Missing"}</strong></div>
+              </div>
+              <div className="mapped-columns">
+                <span>Detected columns</span>
+                <div>{filePreview.detectedColumns.map((column) => <em key={column}><Check size={11} />{column}</em>)}</div>
+              </div>
+              {filePreview.warnings.length ? (
+                <div className="import-warnings">
+                  <CircleAlert size={15} />
+                  <div>
+                    <strong>{filePreview.warnings.length} review note{filePreview.warnings.length === 1 ? "" : "s"}</strong>
+                    {filePreview.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                  </div>
+                </div>
+              ) : (
+                <div className="import-clean">
+                  <ShieldCheck size={16} />
+                  <div>
+                    <strong>No blocking issues</strong>
+                    <p>The workbook has the key header fields required for schedule import.</p>
+                  </div>
+                </div>
+              )}
+              <div className="sample-preview">
+                <span>Sample rows</span>
+                <div className="sample-table">
+                  <div className="sample-row sample-row-header"><strong>Branch</strong><strong>Date</strong><strong>Client name</strong><strong>Account number</strong><strong>RSA amount</strong></div>
+                  {filePreview.sampleRows.map((row, index) => (
+                    <div className="sample-row" key={index}>
+                      <span>{row.Branch || "—"}</span>
+                      <span>{row.Date || "—"}</span>
+                      <span>{row["Client name"] || "—"}</span>
+                      <span>{row["Account number"] || "—"}</span>
+                      <span>{row["RSA amount"] || "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="publish-row">
+                <div><span>Detected workbook</span><strong>{filePreview.fileName}</strong></div>
+                <button className="button button-primary" onClick={publish} disabled={loading || filePreview.warnings.length > 0}>{loading ? <Loader2 className="spin" size={16} /> : <Zap size={16} />} Publish & notify agents</button>
+              </div>
+            </> : (
+              <div className="preview-placeholder">
+                <span><FileSpreadsheet size={27} /></span>
+                <strong>Automatic column intelligence</strong>
+                <p>We’ll detect the header row, branch, date, client name, account number, RSA amount, and commission columns.</p>
+                <div><em>Duplicate accounts</em><em>Missing amounts</em><em>Formula values</em></div>
+              </div>
+            )}
           </div>
         </section>
       ) : null}

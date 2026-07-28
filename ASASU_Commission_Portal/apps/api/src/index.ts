@@ -76,6 +76,10 @@ const evidenceUpload = multer({
   }
 });
 const uploadRoot = path.resolve(moduleRoot, "../uploads/disputes");
+const scheduleUploadRoot = path.resolve(moduleRoot, "../uploads/payment_schedules");
+if (!fs.existsSync(scheduleUploadRoot)) {
+  fs.mkdirSync(scheduleUploadRoot, { recursive: true });
+}
 const webDistRoot = fs.existsSync(path.resolve(moduleRoot, "../../web/dist"))
   ? path.resolve(moduleRoot, "../../web/dist")
   : path.resolve(moduleRoot, "../dist");
@@ -323,6 +327,18 @@ app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleMa
       schedule.sourceFileId = uploadResult.public_id;
     } catch (error) {
       console.warn("Cloudinary upload skipped or failed:", error);
+    }
+  }
+
+  if (!schedule.sourceFileUrl) {
+    try {
+      const safeName = `payment_schedule_${schedule.scheduleNumber}_${Date.now()}${path.extname(request.file.originalname) || ".xlsx"}`;
+      const filePath = path.join(scheduleUploadRoot, safeName);
+      await fsPromises.writeFile(filePath, request.file.buffer);
+      schedule.sourceFileUrl = `/uploads/payment_schedules/${encodeURIComponent(safeName)}`;
+      schedule.sourceFileId = safeName;
+    } catch (error) {
+      console.warn("Local schedule file storage skipped or failed:", error);
     }
   }
 
@@ -713,12 +729,16 @@ app.get("/api/payments/export.csv", requireAuth, requireRole("SUPER_ADMIN", "ADM
 });
 
 // Fallback for unmatched API routes to ensure JSON is returned instead of static HTML fallback
-app.all("/api/*", (_request, response) => {
+app.all("/api", (_request, response) => {
+  response.status(404).json({ message: "API endpoint not found" });
+});
+app.all("/api/:path(.*)", (_request, response) => {
   response.status(404).json({ message: "API endpoint not found" });
 });
 
 // A production build is served by the API process so the portal can deploy as one service.
 app.use(express.static(webDistRoot));
+app.use("/uploads/payment_schedules", express.static(scheduleUploadRoot));
 app.use((request, response, next) => {
   if (request.method !== "GET" || request.path.startsWith("/api/")) return next();
   response.sendFile(path.join(webDistRoot, "index.html"), (error) => error ? next() : undefined);
