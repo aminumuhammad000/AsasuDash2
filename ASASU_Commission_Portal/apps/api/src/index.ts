@@ -41,7 +41,7 @@ import {
 } from "./domain.js";
 import type { DatabaseShape } from "./domain.js";
 import { authMiddleware, authResponse, hashPassword, requireRole, verifyPassword } from "./auth.js";
-import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook } from "./parser.js";
+import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook, type ScheduleParseOverrides } from "./parser.js";
 import { openApiSpec } from "./openapi.js";
 import { JsonStore } from "./store.js";
 
@@ -362,7 +362,17 @@ app.post("/api/payment-schedules/preview", requireAuth, requireRole(...scheduleM
 
 app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleManagers), upload.single("file"), async (request, response) => {
   if (!request.file) return void response.status(400).json({ message: "Upload an Excel or CSV file" });
-  const schedule = await parseScheduleWorkbook(request.file.buffer, request.user!, request.body.title, request.file.originalname);
+
+  let metadata: ScheduleParseOverrides = {};
+  if (typeof request.body.metadata === "string") {
+    try {
+      metadata = JSON.parse(request.body.metadata) as ScheduleParseOverrides;
+    } catch {
+      metadata = {};
+    }
+  }
+
+  const schedule = await parseScheduleWorkbook(request.file.buffer, request.user!, request.body.title, request.file.originalname, metadata);
   if (!schedule.entries.length) return void response.status(422).json({ message: "No schedule rows found. Expected account name and RSA amount columns." });
 
   if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {

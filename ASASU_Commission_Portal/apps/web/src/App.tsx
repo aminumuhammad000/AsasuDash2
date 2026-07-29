@@ -1177,7 +1177,17 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
     setLoading(true); setMessage("");
     try {
       const title = filePreview?.fileName ? `Published schedule · ${filePreview.fileName}` : undefined;
-      await uploadFile(token, "/payment-schedules/upload", file, { title: title ?? "Published schedule" });
+      const metadata = filePreview ? {
+        branch: filePreview.detectedFields.branch,
+        paymentDate: filePreview.detectedFields.paymentDate,
+        detectedFields: filePreview.detectedFields,
+        detectedColumns: filePreview.detectedColumns,
+        warnings: filePreview.warnings
+      } : undefined;
+      await uploadFile(token, "/payment-schedules/upload", file, {
+        title: title ?? "Published schedule",
+        metadata: metadata ? JSON.stringify(metadata) : ""
+      });
       setFile(null); setFilePreview(null); setMessage("Schedule published. Every active agent has been notified.");
       await refresh();
     } catch (err) {

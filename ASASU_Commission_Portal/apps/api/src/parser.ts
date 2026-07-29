@@ -15,6 +15,20 @@ export interface UploadedClaimRow {
   processingFeeApplied: boolean;
 }
 
+export interface ScheduleParseOverrides {
+  branch?: string;
+  paymentDate?: string;
+  detectedFields?: {
+    branch?: string;
+    paymentDate?: string;
+    clientName?: string;
+    accountNumber?: string;
+    rsaAmount?: string;
+  };
+  detectedColumns?: string[];
+  warnings?: string[];
+}
+
 function cleanHeader(value: Cell) {
   return String(value ?? "")
     .toLowerCase()
@@ -153,7 +167,13 @@ async function workbookRows(buffer: Buffer, filename = "") {
   throw new Error("Unable to parse file. Please upload a valid Excel (.xlsx, .xls) or CSV document.");
 }
 
-export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, title?: string, filename?: string): Promise<PaymentSchedule> {
+export async function parseScheduleWorkbook(
+  buffer: Buffer,
+  user: StoredUser,
+  title?: string,
+  filename?: string,
+  overrides?: ScheduleParseOverrides
+): Promise<PaymentSchedule> {
   const scheduleId = `sch_${nanoid(10)}`;
   const entries: PaymentScheduleEntry[] = [];
   const sheets = await workbookRows(buffer, filename);
@@ -177,8 +197,8 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
       .slice(0, headerRowIndex)
       .flatMap((row) => row.map(asText))
       .filter(Boolean);
-    const branch = inferBranch(headingLines, sheet.sheetName);
-    const paymentDate = inferPaymentDate(headingLines);
+    const branch = overrides?.branch || overrides?.detectedFields?.branch || inferBranch(headingLines, sheet.sheetName);
+    const paymentDate = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines);
     branches.add(branch);
     paymentDates.add(paymentDate);
     const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number"]);
@@ -243,8 +263,10 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
   const missingAmounts = entries.filter((entry) => !entry.rsaAmount).length;
   if (missingAmounts) warnings.push(`${missingAmounts} row${missingAmounts === 1 ? " has" : "s have"} no RSA amount and cannot be claimed.`);
 
-  const branch = branches.size === 1 ? [...branches][0]! : "Multiple branches";
-  const paymentDate = [...paymentDates].sort().at(-1) ?? nowIso().slice(0, 10);
+  if (overrides?.warnings?.length) warnings.push(...overrides.warnings);
+
+  const branch = overrides?.branch || (branches.size === 1 ? [...branches][0]! : "Multiple branches");
+  const paymentDate = overrides?.paymentDate || [...paymentDates].sort().at(-1) || nowIso().slice(0, 10);
   const totals = scheduleTotals(entries);
   const uploadedAt = nowIso();
 
