@@ -97,3 +97,10 @@ export async function login(email: string, password: string) {
     body: JSON.stringify({ email, password })
   });
 }
+
+export async function register(name: string, email: string, password: string, agency: string, branch: string, role: "AGENT" | "SUB_DEVELOPER") {
+  return apiRequest<AuthUser>(undefined, "/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ name, email, password, agency, branch, role })
+  });
+}

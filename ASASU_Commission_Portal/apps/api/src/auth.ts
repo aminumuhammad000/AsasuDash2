@@ -20,6 +20,10 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
+export async function hashPassword(password: string) {
+  return bcrypt.hash(password, 12);
+}
+
 export function signToken(user: StoredUser) {
   return jwt.sign({ sub: user.id, role: user.role }, jwtSecret, { expiresIn: "12h" });
 }

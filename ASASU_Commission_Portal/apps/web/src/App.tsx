@@ -281,16 +281,24 @@ export default function App() {
 
 function LoginScreen() {
   const login = useSession((state) => state.login);
+  const register = useSession((state) => state.register);
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [agency, setAgency] = useState("");
+  const [branch, setBranch] = useState("");
+  const [accountRole, setAccountRole] = useState<"AGENT" | "SUB_DEVELOPER">("AGENT");
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
     try {
@@ -302,7 +310,25 @@ function LoginScreen() {
     }
   }
 
-  // demo chooser intentionally disabled in development to force real authentication
+  async function submitRegister(event: React.FormEvent) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+    const trimmedName = name.trim();
+    const trimmedAgency = agency.trim();
+    const trimmedBranch = branch.trim();
+    try {
+      await register(trimmedName, trimmedEmail, trimmedPassword, trimmedAgency, trimmedBranch, accountRole);
+      setSuccess("Account created successfully. You are now signed in.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create account");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <main className="login-page">
@@ -338,36 +364,89 @@ function LoginScreen() {
       </section>
 
       <section className="login-access">
-        <form className="login-card" onSubmit={submit}>
+        <div className="login-card">
           <div className="mobile-wordmark login-wordmark">
             <BrandMark />
             <div><strong>ASASU</strong><small>Commission OS</small></div>
           </div>
           <div className="login-card-heading">
             <span className="eyebrow">Secure workspace</span>
-            <h2>Welcome back</h2>
-            <p>Use your ASASU partner or operations account.</p>
+            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <p>{mode === "login" ? "Use your ASASU partner or operations account." : "Create an agent or sub-developer account to start submitting claims."}</p>
           </div>
-          <label className="field-label">
-            <span>Work email</span>
-            <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-          <label className="field-label">
-            <span>Password</span>
-            <span className="input-with-action">
-              <input type={visible ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-              <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>{visible ? <Moon size={17} /> : <Sun size={17} />}</button>
-            </span>
-          </label>
-          <div className="login-options"><label><input type="checkbox" defaultChecked /> Keep me signed in</label><button type="button">Forgot password?</button></div>
-          {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
-          <button className="button button-primary login-button" type="submit" disabled={loading}>
-            {loading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
-            {loading ? "Verifying…" : "Enter workspace"}
-          </button>
-          {/* demo accounts removed to enforce server authentication */}
+          <div className="login-mode-switch">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }}>Sign in</button>
+            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); setSuccess(""); }}>Create account</button>
+          </div>
+          {mode === "login" ? (
+            <form onSubmit={submit}>
+              <label className="field-label">
+                <span>Work email</span>
+                <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              </label>
+              <label className="field-label">
+                <span>Password</span>
+                <span className="input-with-action">
+                  <input type={visible ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+                  <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>{visible ? <Moon size={17} /> : <Sun size={17} />}</button>
+                </span>
+              </label>
+              <div className="login-options"><label><input type="checkbox" defaultChecked /> Keep me signed in</label><button type="button">Forgot password?</button></div>
+              {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
+              {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
+              <button className="button button-primary login-button" type="submit" disabled={loading}>
+                {loading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
+                {loading ? "Verifying…" : "Enter workspace"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submitRegister}>
+              <label className="field-label">
+                <span>Full name</span>
+                <input type="text" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required />
+              </label>
+              <label className="field-label">
+                <span>Work email</span>
+                <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+              </label>
+              <label className="field-label">
+                <span>Password</span>
+                <span className="input-with-action">
+                  <input type={visible ? "text" : "password"} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required />
+                  <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>{visible ? <Moon size={17} /> : <Sun size={17} />}</button>
+                </span>
+              </label>
+              <label className="field-label">
+                <span>Agency</span>
+                <input type="text" autoComplete="organization" value={agency} onChange={(event) => setAgency(event.target.value)} required />
+              </label>
+              <label className="field-label">
+                <span>Branch <em>(optional)</em></span>
+                <input type="text" value={branch} onChange={(event) => setBranch(event.target.value)} />
+              </label>
+              <label className="field-label">
+                <span>Account type</span>
+                <div className="role-option-grid">
+                  <button type="button" className={`role-option ${accountRole === "AGENT" ? "active" : ""}`} onClick={() => setAccountRole("AGENT")}>
+                    <UserRound size={15} />
+                    <span>Agent</span>
+                  </button>
+                  <button type="button" className={`role-option ${accountRole === "SUB_DEVELOPER" ? "active" : ""}`} onClick={() => setAccountRole("SUB_DEVELOPER")}>
+                    <Building2 size={15} />
+                    <span>Sub-developer</span>
+                  </button>
+                </div>
+              </label>
+              {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
+              {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
+              <button className="button button-primary login-button" type="submit" disabled={loading}>
+                {loading ? <Loader2 className="spin" size={17} /> : <Plus size={17} />}
+                {loading ? "Creating account…" : "Create account"}
+              </button>
+            </form>
+          )}
           <p className="login-security"><ShieldCheck size={13} /> Protected by encrypted, role-based access</p>
-        </form>
+        </div>
       </section>
     </main>
   );
@@ -1101,8 +1180,11 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
       await uploadFile(token, "/payment-schedules/upload", file, { title: title ?? "Published schedule" });
       setFile(null); setFilePreview(null); setMessage("Schedule published. Every active agent has been notified.");
       await refresh();
-    } catch (err) { setMessage(err instanceof Error ? err.message : "Unable to publish schedule"); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Unable to publish schedule");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -1164,7 +1246,7 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
               </div>
               <div className="publish-row">
                 <div><span>Detected workbook</span><strong>{filePreview.fileName}</strong></div>
-                <button className="button button-primary" onClick={publish} disabled={loading || filePreview.warnings.length > 0}>{loading ? <Loader2 className="spin" size={16} /> : <Zap size={16} />} Publish & notify agents</button>
+                <button className="button button-primary" onClick={publish} disabled={loading || !file}>{loading ? <Loader2 className="spin" size={16} /> : <Zap size={16} />} Publish & notify agents</button>
               </div>
             </> : (
               <div className="preview-placeholder">

@@ -206,9 +206,11 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
       const onePercentServiceCharge = onePctIndex >= 0 ? asNumber(row[onePctIndex]) : undefined;
       const twoPercentServiceCharge = twoPctIndex >= 0 ? asNumber(row[twoPctIndex]) : undefined;
       const threePercentServiceCharge = threePctIndex >= 0 ? asNumber(row[threePctIndex]) : undefined;
-      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? asNumber(row[rsaIndex]) ?? 0;
+      const rsaAmount = rsaIndex >= 0 ? asNumber(row[rsaIndex]) : undefined;
+      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? twoPercentServiceCharge ?? 0;
+      const hasImportableValue = Boolean(clientName && (Number(rsaAmount ?? 0) > 0 || Number(serviceCharge) > 0));
 
-      if (!serviceCharge) {
+      if (!hasImportableValue) {
         continue;
       }
 
@@ -221,7 +223,7 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
         accountNo: accountIndex >= 0 ? asText(row[accountIndex]) : undefined,
         applicationNumber: accountIndex >= 0 ? asText(row[accountIndex]) : undefined,
         clientName,
-        rsaAmount: rsaIndex >= 0 ? (asNumber(row[rsaIndex]) ?? 0) : 0,
+        rsaAmount: roundCurrency(rsaAmount ?? 0),
         paymentDate,
         serviceCharge: roundCurrency(serviceCharge),
         threePercentServiceCharge: threePercentServiceCharge ? roundCurrency(threePercentServiceCharge) : undefined,

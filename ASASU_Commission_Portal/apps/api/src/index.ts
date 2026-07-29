@@ -40,7 +40,7 @@ import {
   roundCurrency
 } from "./domain.js";
 import type { DatabaseShape } from "./domain.js";
-import { authMiddleware, authResponse, requireRole, verifyPassword } from "./auth.js";
+import { authMiddleware, authResponse, hashPassword, requireRole, verifyPassword } from "./auth.js";
 import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook } from "./parser.js";
 import { openApiSpec } from "./openapi.js";
 import { JsonStore } from "./store.js";
@@ -201,6 +201,58 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.get("/api/openapi.json", (_request, response) => response.json(openApiSpec));
+
+app.post("/api/auth/register", async (request, response) => {
+  const parsed = z.object({
+    name: z.string().trim().min(2),
+    email: z.string().email(),
+    password: z.string().min(8),
+    agency: z.string().trim().min(2),
+    branch: z.string().trim().optional().default(""),
+    phone: z.string().trim().optional().default(""),
+    role: z.enum(["AGENT", "SUB_DEVELOPER"])
+  }).safeParse(request.body);
+
+  if (!parsed.success) {
+    return void response.status(400).json({ message: "Please provide your name, email, password, agency, and choose an account type." });
+  }
+
+  const { name, email, password, agency, branch, phone, role } = parsed.data;
+  const data = await store.read();
+  const normalizedEmail = email.toLowerCase();
+  if (data.users.some((item) => item.email.toLowerCase() === normalizedEmail && item.active)) {
+    return void response.status(409).json({ message: "An account with this email already exists." });
+  }
+
+  const user = {
+    id: `usr_${nanoid(10)}`,
+    name,
+    email: normalizedEmail,
+    role,
+    agency,
+    branch: branch || undefined,
+    phone: phone || undefined,
+    active: true,
+    createdAt: nowIso(),
+    passwordHash: await hashPassword(password)
+  } satisfies import("./domain.js").StoredUser;
+
+  data.users.push(user);
+  data.auditLog.push({
+    id: `aud_${nanoid(10)}`,
+    actorId: user.id,
+    actorName: user.name,
+    action: "REGISTER",
+    entityType: "AUTH",
+    entityId: user.id,
+    detail: `Created ${role.toLowerCase()} account`,
+    ipAddress: request.ip,
+    userAgent: request.get("user-agent"),
+    createdAt: nowIso()
+  });
+  await store.write(data);
+  response.json(authResponse(user));
+});
 
 app.post("/api/auth/login", async (request, response) => {
   const parsed = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(request.body);
