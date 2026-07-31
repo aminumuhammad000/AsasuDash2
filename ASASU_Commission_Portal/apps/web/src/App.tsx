@@ -138,6 +138,38 @@ function findHeaderColumn(headerRow: string[], targets: string[]) {
   return -1;
 }
 
+function findHeaderRowIndex(rows: string[][]) {
+  const targetKeywords = [
+    "acct no",
+    "acct number",
+    "account no",
+    "account number",
+    "acct name",
+    "client name",
+    "customer name",
+    "rsa amount",
+    "rsa amt",
+    "rsa",
+    "amount",
+    "net",
+    "1% serv",
+    "2% serv",
+    "3% serv"
+  ].map(normalizeHeader);
+
+  const scores = rows.map((row) => {
+    const normalized = row.map(normalizeHeader);
+    return normalized.reduce((count, cell) => count + targetKeywords.filter((keyword) => cell.includes(keyword)).length, 0);
+  });
+
+  const bestIndex = scores.reduce((best, score, index) => {
+    if (score > best.score) return { index, score };
+    return best;
+  }, { index: -1, score: 0 });
+
+  return bestIndex.score >= 1 ? bestIndex.index : -1;
+}
+
 let xlsxLoader: Promise<any> | null = null;
 
 async function loadXlsx(): Promise<any> {
@@ -214,7 +246,7 @@ async function parseWorkbook(file: File): Promise<LocalSchedulePreview> {
   }
 
   const normalized = rows.map((row: any[] = []) => Array.isArray(row) ? row.map((cell: any) => String(cell ?? "").trim()) : []);
-  const headerRowIndex = normalized.findIndex((row) => row.some((cell) => normalizeHeader(cell).length > 0));
+  const headerRowIndex = findHeaderRowIndex(normalized);
   if (headerRowIndex < 0) {
     throw new Error("No header row found in the spreadsheet.");
   }
