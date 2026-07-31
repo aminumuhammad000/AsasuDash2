@@ -42,8 +42,12 @@ import {
 import type { DatabaseShape } from "./domain.js";
 import { authMiddleware, authResponse, hashPassword, requireRole, verifyPassword } from "./auth.js";
 import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook, type ScheduleParseOverrides } from "./parser.js";
+import { createRequire } from "node:module";
 import { openApiSpec } from "./openapi.js";
 import { JsonStore } from "./store.js";
+
+const require = createRequire(import.meta.url);
+const sendEmail = require("../../../../utils/email.js");
 
 dotenv.config();
 const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -352,8 +356,44 @@ app.post("/api/payment-schedules/preview", requireAuth, requireRole(...scheduleM
   if (!request.file) return void response.status(400).json({ message: "Upload an Excel or CSV file" });
   const schedule = await parseScheduleWorkbook(request.file.buffer, request.user!, request.body.title, request.file.originalname);
   if (!schedule.entries.length) return void response.status(422).json({ message: "No schedule rows found. Expected account name and RSA amount columns." });
+
+  let sourceFileUrl: string | undefined;
+  let sourceFileId: string | undefined;
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+    try {
+      const dataUri = `data:${request.file.mimetype};base64,${request.file.buffer.toString("base64")}`;
+      const uploadResult = await cloudinary.uploader.upload(dataUri, {
+        folder: "asasu/payment_schedules",
+        resource_type: "raw",
+        public_id: `payment_schedule_preview_${Date.now()}`,
+        use_filename: true,
+        unique_filename: true
+      });
+      sourceFileUrl = uploadResult.secure_url;
+      sourceFileId = uploadResult.public_id;
+    } catch (error) {
+      console.warn("Cloudinary preview upload skipped or failed:", error);
+    }
+  }
+
+  if (!sourceFileUrl) {
+    try {
+      const safeName = `payment_schedule_preview_${Date.now()}${path.extname(request.file.originalname) || ".xlsx"}`;
+      const filePath = path.join(scheduleUploadRoot, safeName);
+      await fsPromises.writeFile(filePath, request.file.buffer);
+      sourceFileUrl = `/uploads/payment_schedules/${encodeURIComponent(safeName)}`;
+      sourceFileId = safeName;
+    } catch (error) {
+      console.warn("Local preview file storage skipped or failed:", error);
+    }
+  }
+
   response.json({
-    schedule,
+    schedule: {
+      ...schedule,
+      sourceFileUrl,
+      sourceFileId
+    },
     detectedColumns: ["Account number", "Client name", "RSA amount", "1% service charge", "2% service charge"],
     warnings: schedule.importWarnings,
     duplicateAccountNumbers: []
@@ -411,6 +451,14 @@ app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleMa
     data.schedules.push(schedule);
     for (const user of data.users.filter((item) => item.active && isAgentRole(item.role))) {
       data.notifications.push(notify(user.id, "New payment schedule published", `${schedule.branch} · ${schedule.paymentDate} is ready. Search your clients and claim in seconds.`));
+      if (user.email) {
+        void sendEmail(
+          user.email,
+          `New payment schedule published: ${schedule.branch} ${schedule.paymentDate}`,
+          `${schedule.branch} payment schedule for ${schedule.paymentDate} has been published. Log in to the portal to view and claim your clients.`,
+          `<p>New payment schedule published for <strong>${schedule.branch}</strong> on <strong>${schedule.paymentDate}</strong>.</p><p>Log in to the portal to view and claim your clients.</p>`
+        );
+      }
     }
     data.notifications.push(notify(request.user!.id, "Schedule published", `${schedule.entryCount} clients imported with ${schedule.importWarnings.length} warning${schedule.importWarnings.length === 1 ? "" : "s"}.`));
     logAction(data, request, "SCHEDULE_PUBLISHED", "SCHEDULE", schedule.id, `${schedule.scheduleNumber} published with ${schedule.entryCount} rows.`);
@@ -439,11 +487,48 @@ app.patch("/api/payment-schedules/:scheduleId/status", requireAuth, requireRole(
 app.post("/api/uploads/claims/preview", requireAuth, upload.single("file"), async (request, response) => {
   if (!request.file) return void response.status(400).json({ message: "Upload an Excel or CSV file" });
   if (!isAgentRole(request.user!.role)) return void response.status(403).json({ message: "Only agents can submit claims" });
+
+  let uploadedFileUrl: string | undefined;
+  let uploadedFileId: string | undefined;
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+    try {
+      const dataUri = `data:${request.file.mimetype};base64,${request.file.buffer.toString("base64")}`;
+      const uploadResult = await cloudinary.uploader.upload(dataUri, {
+        folder: "asasu/uploads",
+        resource_type: "raw",
+        public_id: `claim_upload_${Date.now()}`,
+        use_filename: true,
+        unique_filename: true
+      });
+      uploadedFileUrl = uploadResult.secure_url;
+      uploadedFileId = uploadResult.public_id;
+    } catch (error) {
+      console.warn("Cloudinary claim upload skipped or failed:", error);
+    }
+  }
+
+  if (!uploadedFileUrl) {
+    try {
+      const safeName = `claim_upload_${Date.now()}${path.extname(request.file.originalname) || ".xlsx"}`;
+      const filePath = path.join(uploadRoot, safeName);
+      await fsPromises.writeFile(filePath, request.file.buffer);
+      uploadedFileUrl = `/uploads/${encodeURIComponent(safeName)}`;
+      uploadedFileId = safeName;
+    } catch (error) {
+      console.warn("Local claim upload storage skipped or failed:", error);
+    }
+  }
+
   const data = await store.read();
   const schedule = latestSchedule(data.schedules);
   const rows = await parseClaimWorkbook(request.file.buffer, request.file.originalname, request.user!.role);
   if (!rows.length) return void response.status(422).json({ message: "No legacy claim rows found." });
-  response.json({ uploadId: `upl_${nanoid(10)}`, rows: createPreviewRows(rows, request.user!.role, schedule?.entries ?? []) });
+  response.json({
+    uploadId: `upl_${nanoid(10)}`,
+    rows: createPreviewRows(rows, request.user!.role, schedule?.entries ?? []),
+    uploadedFileUrl,
+    uploadedFileId
+  });
 });
 
 app.post("/api/claims", requireAuth, async (request, response) => {
@@ -794,7 +879,7 @@ app.get("/api/payments/export.csv", requireAuth, requireRole("SUPER_ADMIN", "ADM
 app.all("/api", (_request, response) => {
   response.status(404).json({ message: "API endpoint not found" });
 });
-app.all("/api/:path(.*)", (_request, response) => {
+app.use("/api", (_request, response) => {
   response.status(404).json({ message: "API endpoint not found" });
 });
 

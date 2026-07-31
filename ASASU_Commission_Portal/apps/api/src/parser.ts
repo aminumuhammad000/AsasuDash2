@@ -74,7 +74,7 @@ function findHeaderRow(rows: Cell[][]) {
   return rows.findIndex((row) => {
     const headers = row.map(cleanHeader);
     const hasClient = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "name"]) >= 0;
-    const hasAmount = findHeaderIndex(headers, ["service charge", "serv chg", "1% serv", "2% serv", "rsa amount", "equity", "0 01"]) >= 0;
+    const hasAmount = findHeaderIndex(headers, ["service charge", "serv chg", "1% serv", "2% serv", "rsa amount", "rsa amt", "equity", "amt", "amount", "0 01"]) >= 0;
     return hasClient && hasAmount;
   });
 }
@@ -201,12 +201,12 @@ export async function parseScheduleWorkbook(
     const paymentDate = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines);
     branches.add(branch);
     paymentDates.add(paymentDate);
-    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number"]);
-    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name"]);
-    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "principal", "amount"]);
-    const threePctIndex = findHeaderIndex(headers, ["3% serv", "3 % serv", "3 service"]);
-    const onePctIndex = findHeaderIndex(headers, ["1% serv", "1 % serv"]);
-    const twoPctIndex = findHeaderIndex(headers, ["2% serv", "2 % serv"]);
+    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number", "acct number"]);
+    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "name"]);
+    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "rsa amt", "principal", "amount"]);
+    const threePctIndex = findHeaderIndex(headers, ["3% serv", "3 % serv", "3 service", "3% serv chg", "3% serv.chg"]);
+    const onePctIndex = findHeaderIndex(headers, ["1% serv", "1 % serv", "1% serv chg", "1% serv.chg"]);
+    const twoPctIndex = findHeaderIndex(headers, ["2% serv", "2 % serv", "2% serv chg", "2% serv.chg"]);
     const netIndex = findHeaderIndex(headers, ["net"]);
     if (clientIndex < 0) {
       continue;

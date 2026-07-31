@@ -64,41 +64,60 @@ io.on('connection', (socket) => {
 // Make io accessible to routes
 app.set('socketio', io);
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('Could not connect to MongoDB:', err));
-
-// Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/submissions', require('./routes/submissions'));
-app.use('/api/partners', require('./routes/partners'));
-app.use('/api/tickets', require('./routes/tickets'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/messages', require('./routes/messages'));
-app.use('/api/broadcasts', require('./routes/broadcasts'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-
-// Portal Routes
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/admin.html'));
-});
-
-app.get('/admin-login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/admin-login.html'));
-});
-
-// Basic Route
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'Backend is running' });
-});
-
-// Fallback to index.html for Partner Portal (Single Page App)
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'public/index.html'));
-});
-
+// MongoDB Connection and app startup
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/asasu_portal';
+
+mongoose.set('strictQuery', false);
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Stop the other process or change PORT in .env.`);
+    process.exit(1);
+  }
+  throw err;
 });
+
+async function startServer() {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    console.log('Connected to MongoDB');
+
+    app.use('/api/auth', require('./routes/auth'));
+    app.use('/api/submissions', require('./routes/submissions'));
+    app.use('/api/partners', require('./routes/partners'));
+    app.use('/api/tickets', require('./routes/tickets'));
+    app.use('/api/settings', require('./routes/settings'));
+    app.use('/api/messages', require('./routes/messages'));
+    app.use('/api/broadcasts', require('./routes/broadcasts'));
+    app.use('/api/dashboard', require('./routes/dashboard'));
+
+    // Portal Routes
+    app.get('/admin', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public/admin.html'));
+    });
+
+    app.get('/admin-login', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public/admin-login.html'));
+    });
+
+    // Basic Route
+    app.get('/api/health', (req, res) => {
+      res.json({ status: 'Backend is running' });
+    });
+
+    // Fallback to index.html for Partner Portal (Single Page App)
+    app.use((req, res) => {
+      res.sendFile(path.join(__dirname, 'public/index.html'));
+    });
+
+    server.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
