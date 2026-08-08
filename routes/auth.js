@@ -32,8 +32,6 @@ router.post('/register', async (req, res) => {
     
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET || 'asasudash_secret_2026', { expiresIn: '1d' });
-
     const mapRole = (r) => {
       if (!r) return 'PARTNER';
       if (r === 'admin') return 'ADMIN';
@@ -41,6 +39,12 @@ router.post('/register', async (req, res) => {
       if (r === 'sub_developer' || r === 'sub-developer' || r === 'subdeveloper') return 'SUB_DEVELOPER';
       return String(r).toUpperCase();
     };
+
+    const token = jwt.sign(
+      { sub: user._id.toString(), id: user._id.toString(), email: user.email, role: mapRole(user.role), name: user.name },
+      process.env.JWT_SECRET || 'asasudash_secret_2026',
+      { expiresIn: '7d' }
+    );
 
     res.status(201).json({
       token,
@@ -157,12 +161,6 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    
-    // Update lastActive
-    user.lastActive = new Date();
-    await user.save();
-
     // Normalize role to the frontend expected format (uppercase role strings)
     const mapRole = (r) => {
       if (!r) return 'PARTNER';
@@ -171,6 +169,12 @@ router.post('/login', async (req, res) => {
       if (r === 'sub_developer' || r === 'sub-developer' || r === 'subdeveloper') return 'SUB_DEVELOPER';
       return String(r).toUpperCase();
     };
+
+    const token = jwt.sign(
+      { sub: user._id.toString(), id: user._id.toString(), email: user.email, role: mapRole(user.role), name: user.name },
+      process.env.JWT_SECRET || 'asasudash_secret_2026',
+      { expiresIn: '7d' }
+    );
 
     // Return flattened AuthUser shape expected by the frontend
     res.json({
