@@ -58,7 +58,7 @@ if (!process.env.CLOUDINARY_API_KEY && fs.existsSync(rootEnvPath)) {
 
 const app = express();
 const server = http.createServer(app);
-const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4300);
+const port = Number(process.env.API_PORT ?? process.env.PORT ?? 4300);
 const corsOrigin = process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",").map((origin) => origin.trim()) : true;
 const store = new JsonStore();
 const upload = multer({
@@ -272,9 +272,6 @@ app.post("/api/auth/login", async (request, response) => {
 app.get("/api/me", requireAuth, (request, response) => response.json(publicUser(request.user!)));
 
 app.patch("/api/me/payment-account", requireAuth, async (request, response) => {
-  if (!isAgentRole(request.user!.role)) {
-    return void response.status(403).json({ message: "Only agents and sub-developers can update a payment account" });
-  }
   const parsed = z
     .object({
       bankName: z.string().trim().min(2).max(80),
@@ -876,10 +873,7 @@ app.get("/api/payments/export.csv", requireAuth, requireRole("SUPER_ADMIN", "ADM
 });
 
 // Fallback for unmatched API routes to ensure JSON is returned instead of static HTML fallback
-app.all("/api", (_request, response) => {
-  response.status(404).json({ message: "API endpoint not found" });
-});
-app.use("/api", (_request, response) => {
+app.all("/api*", (_request, response) => {
   response.status(404).json({ message: "API endpoint not found" });
 });
 

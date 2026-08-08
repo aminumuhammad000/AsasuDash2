@@ -57,12 +57,14 @@ function asText(value: Cell) {
 }
 
 function findHeaderIndex(headers: string[], candidates: string[]) {
-  return headers.findIndex((header) => candidates.some((candidate) => header.includes(candidate)));
+  return headers.findIndex((header) =>
+    candidates.some((candidate) => header.includes(candidate) || (header.length >= 3 && candidate.includes(header)))
+  );
 }
 
 function findHeaderIndexByPriority(headers: string[], candidates: string[]) {
   for (const candidate of candidates) {
-    const index = headers.findIndex((header) => header.includes(candidate));
+    const index = headers.findIndex((header) => header.includes(candidate) || (header.length >= 3 && candidate.includes(header)));
     if (index >= 0) {
       return index;
     }
@@ -71,12 +73,14 @@ function findHeaderIndexByPriority(headers: string[], candidates: string[]) {
 }
 
 function findHeaderRow(rows: Cell[][]) {
-  return rows.findIndex((row) => {
+  const index = rows.findIndex((row) => {
     const headers = row.map(cleanHeader);
-    const hasClient = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "name"]) >= 0;
-    const hasAmount = findHeaderIndex(headers, ["service charge", "serv chg", "1% serv", "2% serv", "rsa amount", "rsa amt", "equity", "amt", "amount", "0 01"]) >= 0;
+    const hasClient = findHeaderIndex(headers, ["client", "client name", "acct name", "account name", "customer", "customer name", "applicant", "applicant name", "beneficiary", "mortgagor", "name"]) >= 0;
+    const hasAmount = findHeaderIndex(headers, ["rsa", "rsa amount", "rsa amt", "service charge", "serv chg", "1% serv", "2% serv", "3% serv", "equity", "amt", "amount", "contribution", "principal", "paid", "value", "total", "0 01"]) >= 0;
     return hasClient && hasAmount;
   });
+  if (index >= 0) return index;
+  return rows.length > 0 ? 0 : -1;
 }
 
 function unwrapCell(value: unknown): Cell {
@@ -128,8 +132,31 @@ function scheduleNumber(branch: string, paymentDate: string) {
 async function workbookRows(buffer: Buffer, filename = "") {
   const text = buffer.toString("utf8");
 
-  if (text.trim().startsWith("<")) {
-    throw new Error("Invalid file format. The uploaded file is an HTML page or document, not an Excel workbook or CSV.");
+  if (text.trim().startsWith("<") || text.includes("<html") || text.includes("<table")) {
+    try {
+      const rows: Cell[][] = [];
+      const rowMatches = text.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
+      if (rowMatches && rowMatches.length > 0) {
+        for (const tr of rowMatches) {
+          const cells: Cell[] = [];
+          const cellMatches = tr.match(/<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi);
+          if (cellMatches) {
+            for (const cellHtml of cellMatches) {
+              const content = cellHtml.replace(/<[^>]+>/g, "").trim();
+              cells.push(content);
+            }
+          }
+          if (cells.length > 0) {
+            rows.push(cells);
+          }
+        }
+        if (rows.length > 0) {
+          return [{ sheetName: filename || "Sheet1", rows }];
+        }
+      }
+    } catch {
+      // HTML parse fallback failed
+    }
   }
 
   // 1. Try parsing as Excel (.xlsx / .xls)
@@ -155,7 +182,8 @@ async function workbookRows(buffer: Buffer, filename = "") {
   try {
     const rows = parseCsv(text, {
       skip_empty_lines: false,
-      relax_column_count: true
+      relax_column_count: true,
+      delimiter: [",", ";", "\t", "|"]
     }) as Cell[][];
     if (rows && rows.length > 0) {
       return [{ sheetName: filename || "Sheet1", rows }];
@@ -201,16 +229,14 @@ export async function parseScheduleWorkbook(
     const paymentDate = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines);
     branches.add(branch);
     paymentDates.add(paymentDate);
-    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number", "acct number"]);
-    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "name"]);
-    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "rsa amt", "principal", "amount"]);
+    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number", "acct number", "account", "no", "sn", "s n", "serial"]);
+    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "client", "customer", "applicant", "beneficiary", "name"]);
+    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "rsa amt", "rsa", "principal", "amount", "equity", "paid", "value", "total"]);
     const threePctIndex = findHeaderIndex(headers, ["3% serv", "3 % serv", "3 service", "3% serv chg", "3% serv.chg"]);
     const onePctIndex = findHeaderIndex(headers, ["1% serv", "1 % serv", "1% serv chg", "1% serv.chg"]);
     const twoPctIndex = findHeaderIndex(headers, ["2% serv", "2 % serv", "2% serv chg", "2% serv.chg"]);
     const netIndex = findHeaderIndex(headers, ["net"]);
-    if (clientIndex < 0) {
-      continue;
-    }
+    const resolvedClientIndex = clientIndex >= 0 ? clientIndex : (headers.length > 1 ? 1 : 0);
 
     for (let index = headerRowIndex + 1; index < sheet.rows.length; index += 1) {
       const row = sheet.rows[index];
@@ -218,16 +244,17 @@ export async function parseScheduleWorkbook(
         continue;
       }
       const firstCell = asText(row[0]);
-      const clientName = asText(row[clientIndex]);
-      if (!clientName || firstCell.toUpperCase() === "TOTAL" || clientName.toUpperCase() === "TOTAL") {
+      const clientName = asText(row[resolvedClientIndex]);
+      const clientUpper = clientName.toUpperCase();
+      if (!clientName || firstCell.toUpperCase() === "TOTAL" || clientUpper === "TOTAL" || clientUpper === "SUBTOTAL" || clientUpper.startsWith("GRAND TOTAL")) {
         continue;
       }
 
       const onePercentServiceCharge = onePctIndex >= 0 ? asNumber(row[onePctIndex]) : undefined;
       const twoPercentServiceCharge = twoPctIndex >= 0 ? asNumber(row[twoPctIndex]) : undefined;
       const threePercentServiceCharge = threePctIndex >= 0 ? asNumber(row[threePctIndex]) : undefined;
-      const rsaAmount = rsaIndex >= 0 ? asNumber(row[rsaIndex]) : undefined;
-      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? twoPercentServiceCharge ?? 0;
+      const rsaAmount = rsaIndex >= 0 ? asNumber(row[rsaIndex]) : (asNumber(row[2]) ?? asNumber(row[1]) ?? asNumber(row[0]));
+      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? twoPercentServiceCharge ?? (rsaAmount ? roundCurrency(rsaAmount * 0.01) : 0);
       const hasImportableValue = Boolean(clientName && (Number(rsaAmount ?? 0) > 0 || Number(serviceCharge) > 0));
 
       if (!hasImportableValue) {

@@ -132,7 +132,7 @@ function findHeaderColumn(headerRow: string[], targets: string[]) {
     if (index >= 0) return index;
   }
   for (const target of exactMatch) {
-    const index = learned.findIndex((cell) => cell.includes(target));
+    const index = learned.findIndex((cell) => cell.includes(target) || (cell.length >= 3 && target.includes(cell)));
     if (index >= 0) return index;
   }
   return -1;
@@ -144,13 +144,21 @@ function findHeaderRowIndex(rows: string[][]) {
     "acct number",
     "account no",
     "account number",
+    "account",
     "acct name",
     "client name",
+    "client",
     "customer name",
+    "customer",
+    "applicant",
+    "beneficiary",
     "rsa amount",
     "rsa amt",
     "rsa",
     "amount",
+    "principal",
+    "paid",
+    "value",
     "net",
     "1% serv",
     "2% serv",
@@ -159,7 +167,7 @@ function findHeaderRowIndex(rows: string[][]) {
 
   const scores = rows.map((row) => {
     const normalized = row.map(normalizeHeader);
-    return normalized.reduce((count, cell) => count + targetKeywords.filter((keyword) => cell.includes(keyword)).length, 0);
+    return normalized.reduce((count, cell) => count + targetKeywords.filter((keyword) => cell.includes(keyword) || (cell.length >= 3 && keyword.includes(cell))).length, 0);
   });
 
   const bestIndex = scores.reduce((best, score, index) => {
@@ -167,7 +175,8 @@ function findHeaderRowIndex(rows: string[][]) {
     return best;
   }, { index: -1, score: 0 });
 
-  return bestIndex.score >= 1 ? bestIndex.index : -1;
+  if (bestIndex.score >= 1) return bestIndex.index;
+  return rows.length > 0 ? 0 : -1;
 }
 
 let xlsxLoader: Promise<any> | null = null;
@@ -1198,7 +1207,35 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
       const preview = await parseWorkbook(fileToParse);
       setFilePreview(preview);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Unable to inspect workbook");
+      console.warn("Client-side workbook parsing failed, trying backend preview...", err);
+      try {
+        const response = await uploadFile<{
+          schedule: any;
+          detectedColumns: string[];
+          warnings: string[];
+        }>(token, "/payment-schedules/preview", fileToParse, { title: fileToParse.name });
+
+        setFilePreview({
+          fileName: fileToParse.name,
+          headerRowIndex: 0,
+          detectedFields: {
+            branch: response.schedule?.branch,
+            paymentDate: response.schedule?.paymentDate,
+            clientName: "Client name",
+            accountNumber: "Account number",
+            rsaAmount: "RSA amount"
+          },
+          detectedColumns: response.detectedColumns || ["Account number", "Client name", "RSA amount"],
+          warnings: response.warnings || [],
+          sampleRows: (response.schedule?.entries || []).slice(0, 5).map((e: any) => ({
+            "Client name": e.clientName,
+            "Account number": e.accountNo || e.applicationNumber || "",
+            "RSA amount": e.rsaAmount ? `₦${e.rsaAmount.toLocaleString()}` : ""
+          }))
+        });
+      } catch (backendErr) {
+        setMessage(backendErr instanceof Error ? backendErr.message : (err instanceof Error ? err.message : "Unable to inspect workbook"));
+      }
     } finally {
       setLoading(false);
     }

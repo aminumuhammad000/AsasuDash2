@@ -1,6 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+const rawTarget = process.env.API_PROXY_TARGET ?? process.env.API_PORT ?? "4300";
+const targetUrl = rawTarget.startsWith("http://") || rawTarget.startsWith("https://")
+  ? rawTarget
+  : `http://localhost:${rawTarget}`;
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -18,11 +23,11 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:4300",
+        target: targetUrl,
         changeOrigin: true
       },
       "/socket.io": {
-        target: "http://localhost:4300",
+        target: targetUrl,
         changeOrigin: true,
         ws: true
       }

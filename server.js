@@ -92,6 +92,18 @@ async function startServer() {
     app.use('/api/broadcasts', require('./routes/broadcasts'));
     app.use('/api/dashboard', require('./routes/dashboard'));
 
+    app.patch('/api/me/payment-account', (req, res) => {
+      const { bankName, accountName, accountNumber, phone } = req.body || {};
+      if (!bankName || !accountName || !accountNumber || !phone) {
+        return res.status(400).json({ message: 'Enter valid bank name, account name, 10-digit account number, and phone number' });
+      }
+      res.json({
+        ok: true,
+        paymentAccount: { bankName, accountName, accountNumber },
+        phone
+      });
+    });
+
     // Portal Routes
     app.get('/admin', (req, res) => {
       res.sendFile(path.join(__dirname, 'public/admin.html'));
@@ -104,6 +116,11 @@ async function startServer() {
     // Basic Route
     app.get('/api/health', (req, res) => {
       res.json({ status: 'Backend is running' });
+    });
+
+    // Fallback for unmatched API routes to ensure JSON is returned instead of HTML
+    app.all('/api/*', (req, res) => {
+      res.status(404).json({ message: 'API endpoint not found' });
     });
 
     // Fallback to index.html for Partner Portal (Single Page App)
