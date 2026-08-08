@@ -78,10 +78,48 @@ server.on('error', (err) => {
   throw err;
 });
 
+const API_PORT = process.env.API_PORT || 4300;
+let apiWorkerProcess = null;
+
+function startApiWorker() {
+  const distPath = path.join(__dirname, 'ASASU_Commission_Portal/dist/index.js');
+  if (!fs.existsSync(distPath)) {
+    console.log('Commission API build not found at dist/index.js; skipping worker auto-spawn.');
+    return;
+  }
+
+  const req = http.get(`http://127.0.0.1:${API_PORT}/api/health`, (res) => {
+    if (res.statusCode === 200) {
+      console.log(`Commission API worker is already running on http://127.0.0.1:${API_PORT}`);
+    }
+  });
+
+  req.on('error', () => {
+    try {
+      const { fork } = require('child_process');
+      apiWorkerProcess = fork(distPath, [], {
+        env: { ...process.env, PORT: String(API_PORT), API_PORT: String(API_PORT) }
+      });
+      console.log(`Spawned ASASU Commission API worker on port ${API_PORT}`);
+
+      apiWorkerProcess.on('exit', (code) => {
+        if (code !== 0 && code !== null) {
+          console.warn(`Commission API worker exited with code ${code}, restarting in 3s...`);
+          setTimeout(startApiWorker, 3000);
+        }
+      });
+    } catch (err) {
+      console.error('Failed to spawn Commission API worker process:', err);
+    }
+  });
+}
+
 async function startServer() {
   try {
     await mongoose.connect(MONGODB_URI);
     console.log('Connected to MongoDB');
+
+    startApiWorker();
 
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/submissions', require('./routes/submissions'));
@@ -118,9 +156,40 @@ async function startServer() {
       res.json({ status: 'Backend is running' });
     });
 
-    // Fallback for unmatched API routes to ensure JSON is returned instead of HTML
+    // Forward unmatched /api requests to Commission OS API worker on port 4300
     app.use('/api', (req, res) => {
-      res.status(404).json({ message: 'API endpoint not found' });
+      const targetPath = req.originalUrl || `/api${req.url}`;
+      const options = {
+        hostname: '127.0.0.1',
+        port: API_PORT,
+        path: targetPath,
+        method: req.method,
+        headers: {
+          ...req.headers,
+          host: `127.0.0.1:${API_PORT}`
+        }
+      };
+
+      const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      });
+
+      proxyReq.on('error', (err) => {
+        console.error(`Proxy error for ${targetPath}:`, err.message);
+        if (!res.headersSent) {
+          res.status(502).json({ message: 'Commission API service is starting or unavailable. Please try again in a moment.' });
+        }
+      });
+
+      if (req.body && Object.keys(req.body).length > 0 && req.headers['content-type']?.includes('application/json')) {
+        const bodyData = JSON.stringify(req.body);
+        proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+        proxyReq.write(bodyData);
+        proxyReq.end();
+      } else {
+        req.pipe(proxyReq, { end: true });
+      }
     });
 
     // Fallback to index.html for Partner Portal (Single Page App)
