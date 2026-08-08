@@ -47,7 +47,6 @@ import { openApiSpec } from "./openapi.js";
 import { JsonStore } from "./store.js";
 
 const require = createRequire(import.meta.url);
-const sendEmail = require("../../../../utils/email.js");
 
 dotenv.config();
 const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +54,30 @@ const rootEnvPath = path.resolve(moduleRoot, "../../../../.env");
 if (!process.env.CLOUDINARY_API_KEY && fs.existsSync(rootEnvPath)) {
   dotenv.config({ path: rootEnvPath });
 }
+
+function loadEmailUtil() {
+  const possiblePaths = [
+    path.resolve(moduleRoot, "../../../../utils/email.js"),
+    path.resolve(moduleRoot, "../../../utils/email.js"),
+    path.resolve(moduleRoot, "../../utils/email.js"),
+    path.resolve(process.cwd(), "utils/email.js"),
+    path.resolve(process.cwd(), "../../utils/email.js")
+  ];
+  for (const emailPath of possiblePaths) {
+    if (fs.existsSync(emailPath)) {
+      try {
+        return require(emailPath);
+      } catch (err) {
+        console.warn("Failed loading email util from", emailPath, err);
+      }
+    }
+  }
+  return async (to: string, subject: string, text: string) => {
+    console.log(`[Email util fallback] To: ${to}, Subject: ${subject}`);
+  };
+}
+
+const sendEmail = loadEmailUtil();
 
 const app = express();
 const server = http.createServer(app);
