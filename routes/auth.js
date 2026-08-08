@@ -14,88 +14,45 @@ router.post('/register', async (req, res) => {
     const { email, password, name, role } = req.body;
     
     // Check if user exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email ? email.toLowerCase() : "" });
     if (existingUser) return res.status(400).json({ error: 'Email already registered' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
-
-    // Default status is active for the first admin, pending_approval for others
     const userCount = await User.countDocuments();
-    let status = 'pending_approval';
-    
-    // First user is always active admin and verified
-    const isVerified = (userCount === 0);
-    if (userCount === 0) {
-      status = 'active';
-    }
+    const assignedRole = role || (userCount === 0 ? 'admin' : 'partner');
 
     const user = new User({ 
-      email, 
+      email: email.toLowerCase(), 
       password: hashedPassword, 
       name, 
-      role: (userCount === 0) ? 'admin' : 'partner',
-      status,
-      isVerified,
-      otp,
-      otpExpires
+      role: assignedRole,
+      status: 'active',
+      isVerified: true
     });
     
     await user.save();
 
-    // Send OTP Email if not first admin
-    if (!isVerified) {
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            .email-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e1e4e8; border-radius: 12px; overflow: hidden; color: #1a1f3c; }
-            .header { background: #1a1f3c; padding: 30px; text-align: center; }
-            .logo { font-size: 24px; font-weight: bold; color: #e8b84b; text-decoration: none; }
-            .content { padding: 40px 30px; line-height: 1.6; background: #ffffff; }
-            .otp-box { background: #f7f8fc; padding: 25px; text-align: center; border-radius: 8px; margin: 30px 0; border: 1px dashed #e8b84b; }
-            .otp-code { font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #1a1f3c; margin: 0; }
-            .footer { background: #f7f8fc; padding: 20px; text-align: center; font-size: 12px; color: #888; border-top: 1px solid #e1e4e8; }
-            .btn { display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; text-decoration: none; border-radius: 6px; font-weight: 700; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="email-container">
-            <div class="header">
-              <div class="logo">🏠 ASASU REALTY</div>
-            </div>
-            <div class="content">
-              <h2 style="margin-top:0">Welcome to the Portal, ${name}!</h2>
-              <p>To finalize your registration and begin tracking your commissions, please verify your email address using the code below:</p>
-              <div class="otp-box">
-                <p style="margin:0 0 10px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Your Verification Code</p>
-                <div class="otp-code">${otp}</div>
-              </div>
-              <p>This code is valid for <strong>10 minutes</strong>. If you didn't create an account, you can safely ignore this email.</p>
-            </div>
-            <div class="footer">
-              &copy; 2026 ASASU Realty LTD. All rights reserved.<br>
-              Professional Commission Management for Real Estate Partners.
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-      await sendEmail(
-        email,
-        'Verify your ASASU Portal Account',
-        `Hello ${name}, Your verification code is: ${otp}`,
-        emailHtml
-      );
-    }
+    const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET || 'asasudash_secret_2026', { expiresIn: '1d' });
 
-    res.status(201).json({ 
-      message: isVerified ? 'User created' : 'Registration submitted. Please verify your email with the OTP sent.',
-      status,
-      needsVerification: !isVerified
+    const mapRole = (r) => {
+      if (!r) return 'PARTNER';
+      if (r === 'admin') return 'ADMIN';
+      if (r === 'agent') return 'AGENT';
+      if (r === 'sub_developer' || r === 'sub-developer' || r === 'subdeveloper') return 'SUB_DEVELOPER';
+      return String(r).toUpperCase();
+    };
+
+    res.status(201).json({
+      token,
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: mapRole(user.role),
+      agency: user.agency || null,
+      branch: user.branch || null,
+      phone: user.phone || null,
+      active: true,
+      createdAt: user.createdAt ? user.createdAt.toISOString() : new Date().toISOString()
     });
   } catch (err) {
     res.status(400).json({ error: err.message });

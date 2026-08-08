@@ -2271,11 +2271,17 @@ async function registerPartner() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     
-    if (data.needsVerification) {
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data));
+      currentUser = data;
+      toast('Account created! Redirecting to dashboard...', 'success');
+      showDashboard();
+    } else if (data.needsVerification) {
       toast('Verification code sent to your email', 'info');
       showRegOTP(email);
     } else {
-      toast(data.message, 'success');
+      toast(data.message || 'Account created successfully', 'success');
       showLogin();
     }
   } catch (err) {
