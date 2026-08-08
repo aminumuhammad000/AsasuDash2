@@ -119,7 +119,7 @@ async function startServer() {
     });
 
     // Fallback for unmatched API routes to ensure JSON is returned instead of HTML
-    app.all('/api/*', (req, res) => {
+    app.use('/api', (req, res) => {
       res.status(404).json({ message: 'API endpoint not found' });
     });
 

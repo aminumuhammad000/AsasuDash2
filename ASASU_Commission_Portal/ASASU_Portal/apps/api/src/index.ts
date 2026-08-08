@@ -679,7 +679,7 @@ app.get("/api/payments/export.csv", requireAuth, requireRole("SUPER_ADMIN", "ADM
 });
 
 // Fallback for unmatched API routes to ensure JSON is returned instead of static HTML fallback
-app.all("/api/*", (_request, response) => {
+app.use("/api", (_request, response) => {
   response.status(404).json({ message: "API endpoint not found" });
 });
 
