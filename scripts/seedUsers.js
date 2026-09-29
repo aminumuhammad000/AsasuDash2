@@ -12,18 +12,24 @@ async function main() {
   console.log('Connected to MongoDB');
 
   const users = [
-    { name: 'Admin User', email: 'admin@example.com', role: 'admin' },
-    { name: 'Agent User', email: 'agent@example.com', role: 'agent' },
-    { name: 'Sub Developer', email: 'subdev@example.com', role: 'sub_developer' }
+    { name: 'ASASU Admin', email: 'asasu@gmail.com', role: 'admin', password: 'Admin@123456' },
+    { name: 'Admin User', email: 'admin@example.com', role: 'admin', password: 'Password@123' },
+    { name: 'Agent User', email: 'agent@example.com', role: 'agent', password: 'Password@123' },
+    { name: 'Sub Developer', email: 'subdev@example.com', role: 'sub_developer', password: 'Password@123' }
   ];
 
   for (const u of users) {
     const existing = await User.findOne({ email: u.email });
     if (existing) {
-      console.log(`Skipping existing: ${u.email}`);
+      existing.password = await bcrypt.hash(u.password, 10);
+      existing.role = u.role;
+      existing.status = 'active';
+      existing.isVerified = true;
+      await existing.save();
+      console.log(`Updated existing user: ${u.email} (${u.role})`);
       continue;
     }
-    const hashed = await bcrypt.hash('Password@123', 10);
+    const hashed = await bcrypt.hash(u.password, 10);
     const user = new User({
       name: u.name,
       email: u.email,

@@ -85,6 +85,18 @@ export function createSeedData(): DatabaseShape {
       createdAt
     },
     {
+      id: "usr_asasu_admin",
+      name: "ASASU Admin",
+      email: "asasu@gmail.com",
+      passwordHash: hash("Admin@123456"),
+      role: "ADMIN",
+      agency: "ASASU Realty HQ",
+      branch: "Head Office",
+      phone: "+234 800 000 0000",
+      active: true,
+      createdAt
+    },
+    {
       id: "usr_agent",
       name: "Tunde Balogun",
       email: "agent@asasurealty.com",
