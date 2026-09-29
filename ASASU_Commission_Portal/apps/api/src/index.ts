@@ -138,10 +138,11 @@ io.on("connection", (socket) => {
   if (userId) socket.join(userId);
 });
 
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({ origin: corsOrigin, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
-app.use(rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: true, legacyHeaders: false }));
+app.use(rateLimit({ windowMs: 60_000, limit: 240, standardHeaders: true, legacyHeaders: false, validate: { xForwardedForHeader: false } }));
 
 const requireAuth = authMiddleware(store);
 const scheduleManagers: Role[] = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN"];
