@@ -479,13 +479,14 @@ async function parseScheduleWorkbook(buffer, user, title, filename, overrides) {
     const paymentDate2 = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines);
     branches.add(branch2);
     paymentDates.add(paymentDate2);
-    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number", "acct number", "account", "no", "sn", "s n", "serial"]);
-    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "client", "customer", "applicant", "beneficiary", "name"]);
-    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "rsa amt", "rsa", "principal", "amount", "equity", "paid", "value", "total"]);
-    const threePctIndex = findHeaderIndex(headers, ["3% serv", "3 % serv", "3 service", "3% serv chg", "3% serv.chg"]);
-    const onePctIndex = findHeaderIndex(headers, ["1% serv", "1 % serv", "1% serv chg", "1% serv.chg"]);
-    const twoPctIndex = findHeaderIndex(headers, ["2% serv", "2 % serv", "2% serv chg", "2% serv.chg"]);
-    const netIndex = findHeaderIndex(headers, ["net"]);
+    const serialIndex = findHeaderIndexByPriority(headers, ["s/no", "s no", "sn", "s n", "serial", "no"]);
+    const accountIndex = findHeaderIndexByPriority(headers, ["acct no", "account no", "account number", "acct number", "account", "app no", "application no", "appl no"]);
+    const clientIndex = findHeaderIndexByPriority(headers, ["acct name", "account name", "client name", "customer name", "client", "customer", "applicant", "beneficiary", "mortgagor", "name"]);
+    const rsaIndex = findHeaderIndexByPriority(headers, ["rsa amount", "rsa amt", "rsa", "principal", "amount", "equity", "paid", "value"]);
+    const threePctIndex = findHeaderIndexByPriority(headers, ["3% serv", "3 % serv", "3 service", "3% serv chg", "3% serv.chg"]);
+    const onePctIndex = findHeaderIndexByPriority(headers, ["1% serv", "1 % serv", "1% serv chg", "1% serv.chg"]);
+    const twoPctIndex = findHeaderIndexByPriority(headers, ["2% serv", "2 % serv", "2% serv chg", "2% serv.chg"]);
+    const netIndex = findHeaderIndexByPriority(headers, ["net amount", "net amt", "net balance", "net"]);
     const resolvedClientIndex = clientIndex >= 0 ? clientIndex : headers.length > 1 ? 1 : 0;
     for (let index = headerRowIndex + 1; index < sheet.rows.length; index += 1) {
       const row = sheet.rows[index];
@@ -570,7 +571,7 @@ async function parseClaimWorkbook(buffer, filename, role) {
       continue;
     }
     const headers = headerRow.map(cleanHeader);
-    const clientIndex = findHeaderIndex(headers, ["client name", "acct name", "account name", "customer name", "name"]);
+    const clientIndex = findHeaderIndexByPriority(headers, ["client name", "acct name", "account name", "customer name", "client", "customer", "applicant", "beneficiary", "mortgagor", "name"]);
     const roleSpecificCandidates = role === "SUB_DEVELOPER" ? ["2% serv", "2 % serv"] : ["1% serv", "1 % serv"];
     const serviceChargeIndex = findHeaderIndexByPriority(headers, [
       ...roleSpecificCandidates,
