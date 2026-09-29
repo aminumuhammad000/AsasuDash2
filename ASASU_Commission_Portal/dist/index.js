@@ -1033,7 +1033,7 @@ function loadEmailUtil() {
 var sendEmail = loadEmailUtil();
 var app = express();
 var server = http.createServer(app);
-var port = Number(process.env.PORT ?? process.env.API_PORT ?? 3e3);
+var port = Number(process.env.PORT ?? process.env.API_PORT ?? 5001);
 var corsOrigin = process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",").map((origin) => origin.trim()) : true;
 var store = new JsonStore();
 var upload = multer({

@@ -81,7 +81,7 @@ const sendEmail = loadEmailUtil();
 
 const app = express();
 const server = http.createServer(app);
-const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 5001);
 const corsOrigin = process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",").map((origin) => origin.trim()) : true;
 const store = new JsonStore();
 const upload = multer({
