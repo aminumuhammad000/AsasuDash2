@@ -120,19 +120,19 @@ function BrandMark({ inverse = false }: { inverse?: boolean }) {
   return <span className={`brand-mark ${inverse ? "brand-mark-inverse" : ""}`}><img src="/asasu-realty-official-logo.jpeg" alt="" /></span>;
 }
 
-function normalizeHeader(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function normalizeHeader(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim();
 }
 
 function findHeaderColumn(headerRow: string[], targets: string[]) {
-  const learned = headerRow.map(normalizeHeader);
+  const learned = (headerRow ?? []).map(normalizeHeader);
   const exactMatch = targets.map(normalizeHeader);
   for (const target of exactMatch) {
-    const index = learned.findIndex((cell) => cell === target);
+    const index = learned.findIndex((cell) => cell && cell === target);
     if (index >= 0) return index;
   }
   for (const target of exactMatch) {
-    const index = learned.findIndex((cell) => cell.includes(target) || (cell.length >= 3 && target.includes(cell)));
+    const index = learned.findIndex((cell) => cell && (cell.includes(target) || (cell.length >= 3 && target.includes(cell))));
     if (index >= 0) return index;
   }
   return -1;
@@ -166,8 +166,9 @@ function findHeaderRowIndex(rows: string[][]) {
   ].map(normalizeHeader);
 
   const scores = rows.map((row) => {
+    if (!Array.isArray(row)) return 0;
     const normalized = row.map(normalizeHeader);
-    return normalized.reduce((count, cell) => count + targetKeywords.filter((keyword) => cell.includes(keyword) || (cell.length >= 3 && keyword.includes(cell))).length, 0);
+    return normalized.reduce((count, cell) => count + targetKeywords.filter((keyword) => cell && (cell.includes(keyword) || (cell.length >= 3 && keyword.includes(cell)))).length, 0);
   });
 
   const bestIndex = scores.reduce((best, score, index) => {

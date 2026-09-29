@@ -337,12 +337,14 @@ function asText(value) {
 }
 function findHeaderIndex(headers, candidates) {
   return headers.findIndex(
-    (header) => candidates.some((candidate) => header.includes(candidate) || header.length >= 3 && candidate.includes(header))
+    (header) => Boolean(header) && typeof header === "string" && candidates.some((candidate) => header.includes(candidate) || header.length >= 3 && candidate.includes(header))
   );
 }
 function findHeaderIndexByPriority(headers, candidates) {
   for (const candidate of candidates) {
-    const index = headers.findIndex((header) => header.includes(candidate) || header.length >= 3 && candidate.includes(header));
+    const index = headers.findIndex(
+      (header) => Boolean(header) && typeof header === "string" && (header.includes(candidate) || header.length >= 3 && candidate.includes(header))
+    );
     if (index >= 0) {
       return index;
     }
@@ -351,6 +353,7 @@ function findHeaderIndexByPriority(headers, candidates) {
 }
 function findHeaderRow(rows) {
   const index = rows.findIndex((row) => {
+    if (!Array.isArray(row) || row.length === 0) return false;
     const headers = row.map(cleanHeader);
     const hasClient = findHeaderIndex(headers, ["client", "client name", "acct name", "account name", "customer", "customer name", "applicant", "applicant name", "beneficiary", "mortgagor", "name"]) >= 0;
     const hasAmount = findHeaderIndex(headers, ["rsa", "rsa amount", "rsa amt", "service charge", "serv chg", "1% serv", "2% serv", "3% serv", "equity", "amt", "amount", "contribution", "principal", "paid", "value", "total", "0 01"]) >= 0;
@@ -363,11 +366,17 @@ function unwrapCell(value) {
   if (value === null || value === void 0) return null;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === "object" && value && "result" in value) {
-    return unwrapCell(value.result);
-  }
-  if (typeof value === "object" && value && "richText" in value) {
-    return value.richText?.map((part) => part.text ?? "").join("") ?? "";
+  if (typeof value === "object" && value) {
+    if ("error" in value) return null;
+    if ("result" in value) {
+      return unwrapCell(value.result);
+    }
+    if ("richText" in value && Array.isArray(value.richText)) {
+      return value.richText?.map((part) => part.text ?? "").join("") ?? "";
+    }
+    if ("text" in value) {
+      return String(value.text ?? "");
+    }
   }
   return String(value);
 }
@@ -377,26 +386,50 @@ function inferBranch(lines, sheetName) {
   if (source.includes("YOLA")) return "Yola";
   return sheetName.replace(/\b(ASASU|REALTY|TRANSACTIONS?|RSA|25%)\b/gi, " ").replace(/\s+/g, " ").trim() || "All branches";
 }
-function inferPaymentDate(lines) {
-  const source = lines.join(" ").toUpperCase();
+function inferPaymentDate(lines, filename = "") {
+  const source = [...lines, filename].join(" ").toUpperCase();
   const monthNames = {
+    JAN: 1,
     JANUARY: 1,
+    FEB: 2,
     FEBRUARY: 2,
+    MAR: 3,
     MARCH: 3,
+    APR: 4,
     APRIL: 4,
     MAY: 5,
+    JUN: 6,
     JUNE: 6,
+    JUL: 7,
     JULY: 7,
+    AUG: 8,
     AUGUST: 8,
+    SEP: 9,
+    SEPT: 9,
     SEPTEMBER: 9,
+    OCT: 10,
     OCTOBER: 10,
+    NOV: 11,
     NOVEMBER: 11,
+    DEC: 12,
     DECEMBER: 12
   };
-  const match = source.match(/(\d{1,2})(?:ST|ND|RD|TH)?\s+(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+(20\d{2})/);
-  if (!match) return nowIso().slice(0, 10);
-  const [, day, month, year] = match;
-  return `${year}-${String(monthNames[month] ?? 1).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  const wordMatch = source.match(/(\d{1,2})(?:ST|ND|RD|TH)?[\s,\-_]+(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|SEPT|OCTOBER|NOVEMBER|DECEMBER|JAN|FEB|MAR|APR|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[\s,\-_]+(20\d{2})/);
+  if (wordMatch) {
+    const [, day, month, year] = wordMatch;
+    return `${year}-${String(monthNames[month] ?? 1).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  const isoMatch = source.match(/(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  const dmyMatch = source.match(/(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    return `${year}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  return nowIso().slice(0, 10);
 }
 function scheduleNumber(branch, paymentDate) {
   return `AS-${branch.slice(0, 3).toUpperCase()}-${paymentDate.replaceAll("-", "")}`;
@@ -436,10 +469,22 @@ async function workbookRows(buffer, filename = "") {
       return workbook.worksheets.map((worksheet) => {
         const rows = [];
         worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-          const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-          rows[rowNumber - 1] = values.map(unwrapCell);
+          const maxCell = Math.max(
+            Array.isArray(row.values) ? row.values.length - 1 : 0,
+            row.cellCount || 0,
+            row.actualCellCount || 0
+          );
+          const cells = [];
+          for (let col = 1; col <= maxCell; col += 1) {
+            cells.push(unwrapCell(row.getCell(col).value));
+          }
+          rows[rowNumber - 1] = cells;
         });
-        return { sheetName: worksheet.name, rows };
+        const denseRows = [];
+        for (let i = 0; i < rows.length; i += 1) {
+          denseRows.push(rows[i] ?? []);
+        }
+        return { sheetName: worksheet.name, rows: denseRows };
       });
     }
   } catch {
@@ -470,13 +515,13 @@ async function parseScheduleWorkbook(buffer, user, title, filename, overrides) {
       continue;
     }
     const headerRow = sheet.rows[headerRowIndex];
-    if (!headerRow) {
+    if (!headerRow || !Array.isArray(headerRow)) {
       continue;
     }
     const headers = headerRow.map(cleanHeader);
-    const headingLines = sheet.rows.slice(0, headerRowIndex).flatMap((row) => row.map(asText)).filter(Boolean);
+    const headingLines = sheet.rows.slice(0, headerRowIndex).flatMap((row) => Array.isArray(row) ? row.map(asText) : []).filter(Boolean);
     const branch2 = overrides?.branch || overrides?.detectedFields?.branch || inferBranch(headingLines, sheet.sheetName);
-    const paymentDate2 = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines);
+    const paymentDate2 = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines, filename);
     branches.add(branch2);
     paymentDates.add(paymentDate2);
     const serialIndex = findHeaderIndexByPriority(headers, ["s/no", "s no", "sn", "s n", "serial", "no"]);

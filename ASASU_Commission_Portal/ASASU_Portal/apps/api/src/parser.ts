@@ -15,6 +15,20 @@ export interface UploadedClaimRow {
   processingFeeApplied: boolean;
 }
 
+export interface ScheduleParseOverrides {
+  branch?: string;
+  paymentDate?: string;
+  detectedFields?: {
+    branch?: string;
+    paymentDate?: string;
+    clientName?: string;
+    accountNumber?: string;
+    rsaAmount?: string;
+  };
+  detectedColumns?: string[];
+  warnings?: string[];
+}
+
 function cleanHeader(value: Cell) {
   return String(value ?? "")
     .toLowerCase()
@@ -42,13 +56,21 @@ function asText(value: Cell) {
   return String(value ?? "").trim();
 }
 
-function findHeaderIndex(headers: string[], candidates: string[]) {
-  return headers.findIndex((header) => candidates.some((candidate) => header.includes(candidate)));
+function findHeaderIndex(headers: (string | null | undefined)[], candidates: string[]) {
+  return headers.findIndex((header) =>
+    Boolean(header) &&
+    typeof header === "string" &&
+    candidates.some((candidate) => header.includes(candidate) || (header.length >= 3 && candidate.includes(header)))
+  );
 }
 
-function findHeaderIndexByPriority(headers: string[], candidates: string[]) {
+function findHeaderIndexByPriority(headers: (string | null | undefined)[], candidates: string[]) {
   for (const candidate of candidates) {
-    const index = headers.findIndex((header) => header.includes(candidate));
+    const index = headers.findIndex((header) =>
+      Boolean(header) &&
+      typeof header === "string" &&
+      (header.includes(candidate) || (header.length >= 3 && candidate.includes(header)))
+    );
     if (index >= 0) {
       return index;
     }
@@ -57,23 +79,32 @@ function findHeaderIndexByPriority(headers: string[], candidates: string[]) {
 }
 
 function findHeaderRow(rows: Cell[][]) {
-  return rows.findIndex((row) => {
+  const index = rows.findIndex((row) => {
+    if (!Array.isArray(row) || row.length === 0) return false;
     const headers = row.map(cleanHeader);
-    const hasClient = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name", "name"]) >= 0;
-    const hasAmount = findHeaderIndex(headers, ["service charge", "serv chg", "1% serv", "2% serv", "rsa amount", "equity", "0 01"]) >= 0;
+    const hasClient = findHeaderIndex(headers, ["client", "client name", "acct name", "account name", "customer", "customer name", "applicant", "applicant name", "beneficiary", "mortgagor", "name"]) >= 0;
+    const hasAmount = findHeaderIndex(headers, ["rsa", "rsa amount", "rsa amt", "service charge", "serv chg", "1% serv", "2% serv", "3% serv", "equity", "amt", "amount", "contribution", "principal", "paid", "value", "total", "0 01"]) >= 0;
     return hasClient && hasAmount;
   });
+  if (index >= 0) return index;
+  return rows.length > 0 ? 0 : -1;
 }
 
 function unwrapCell(value: unknown): Cell {
   if (value === null || value === undefined) return null;
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === "object" && value && "result" in value) {
-    return unwrapCell((value as { result?: unknown }).result);
-  }
-  if (typeof value === "object" && value && "richText" in value) {
-    return (value as { richText?: Array<{ text?: string }> }).richText?.map((part) => part.text ?? "").join("") ?? "";
+  if (typeof value === "object" && value) {
+    if ("error" in value) return null;
+    if ("result" in value) {
+      return unwrapCell((value as { result?: unknown }).result);
+    }
+    if ("richText" in value && Array.isArray((value as { richText?: Array<{ text?: string }> }).richText)) {
+      return (value as { richText?: Array<{ text?: string }> }).richText?.map((part) => part.text ?? "").join("") ?? "";
+    }
+    if ("text" in value) {
+      return String((value as { text?: unknown }).text ?? "");
+    }
   }
   return String(value);
 }
@@ -85,26 +116,50 @@ function inferBranch(lines: string[], sheetName: string) {
   return sheetName.replace(/\b(ASASU|REALTY|TRANSACTIONS?|RSA|25%)\b/gi, " ").replace(/\s+/g, " ").trim() || "All branches";
 }
 
-function inferPaymentDate(lines: string[]) {
-  const source = lines.join(" ").toUpperCase();
+function inferPaymentDate(lines: string[], filename = "") {
+  const source = [...lines, filename].join(" ").toUpperCase();
   const monthNames: Record<string, number> = {
+    JAN: 1,
     JANUARY: 1,
+    FEB: 2,
     FEBRUARY: 2,
+    MAR: 3,
     MARCH: 3,
+    APR: 4,
     APRIL: 4,
     MAY: 5,
+    JUN: 6,
     JUNE: 6,
+    JUL: 7,
     JULY: 7,
+    AUG: 8,
     AUGUST: 8,
+    SEP: 9,
+    SEPT: 9,
     SEPTEMBER: 9,
+    OCT: 10,
     OCTOBER: 10,
+    NOV: 11,
     NOVEMBER: 11,
+    DEC: 12,
     DECEMBER: 12
   };
-  const match = source.match(/(\d{1,2})(?:ST|ND|RD|TH)?\s+(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+(20\d{2})/);
-  if (!match) return nowIso().slice(0, 10);
-  const [, day, month, year] = match;
-  return `${year}-${String(monthNames[month!] ?? 1).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  const wordMatch = source.match(/(\d{1,2})(?:ST|ND|RD|TH)?[\s,\-_]+(JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|SEPT|OCTOBER|NOVEMBER|DECEMBER|JAN|FEB|MAR|APR|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[\s,\-_]+(20\d{2})/);
+  if (wordMatch) {
+    const [, day, month, year] = wordMatch;
+    return `${year}-${String(monthNames[month!] ?? 1).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  const isoMatch = source.match(/(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  const dmyMatch = source.match(/(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    return `${year}-${String(Number(month)).padStart(2, "0")}-${String(Number(day)).padStart(2, "0")}`;
+  }
+  return nowIso().slice(0, 10);
 }
 
 function scheduleNumber(branch: string, paymentDate: string) {
@@ -112,44 +167,90 @@ function scheduleNumber(branch: string, paymentDate: string) {
 }
 
 async function workbookRows(buffer: Buffer, filename = "") {
-  const isCsvFile = filename.toLowerCase().endsWith(".csv");
-  const isXlsxHeader = buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04;
-  const isCompoundFileHeader = buffer.length >= 8 && buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+  const text = buffer.toString("utf8");
 
-  if (isCsvFile && !isXlsxHeader && !isCompoundFileHeader) {
-    const text = buffer.toString("utf8");
-    if (text.trim().startsWith("<")) {
-      throw new Error("Invalid file format. The uploaded file appears to be HTML instead of an Excel spreadsheet or CSV.");
+  if (text.trim().startsWith("<") || text.includes("<html") || text.includes("<table")) {
+    try {
+      const rows: Cell[][] = [];
+      const rowMatches = text.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi);
+      if (rowMatches && rowMatches.length > 0) {
+        for (const tr of rowMatches) {
+          const cells: Cell[] = [];
+          const cellMatches = tr.match(/<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi);
+          if (cellMatches) {
+            for (const cellHtml of cellMatches) {
+              const content = cellHtml.replace(/<[^>]+>/g, "").trim();
+              cells.push(content);
+            }
+          }
+          if (cells.length > 0) {
+            rows.push(cells);
+          }
+        }
+        if (rows.length > 0) {
+          return [{ sheetName: filename || "Sheet1", rows }];
+        }
+      }
+    } catch {
+      // HTML parse fallback failed
     }
-    const rows = parseCsv(text, {
-      skip_empty_lines: false,
-      relax_column_count: true
-    }) as Cell[][];
-    return [{ sheetName: "CSV Upload", rows }];
   }
 
+  // 1. Try parsing as Excel (.xlsx / .xls)
   try {
     const workbook = new ExcelJS.Workbook();
     const excelInput = buffer as unknown as Parameters<typeof workbook.xlsx.load>[0];
     await workbook.xlsx.load(excelInput);
-    return workbook.worksheets.map((worksheet) => {
-      const rows: Cell[][] = [];
-      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-        const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-        rows[rowNumber - 1] = values.map(unwrapCell);
+    if (workbook.worksheets.length > 0) {
+      return workbook.worksheets.map((worksheet) => {
+        const rows: Cell[][] = [];
+        worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+          const maxCell = Math.max(
+            Array.isArray(row.values) ? row.values.length - 1 : 0,
+            row.cellCount || 0,
+            row.actualCellCount || 0
+          );
+          const cells: Cell[] = [];
+          for (let col = 1; col <= maxCell; col += 1) {
+            cells.push(unwrapCell(row.getCell(col).value));
+          }
+          rows[rowNumber - 1] = cells;
+        });
+        const denseRows: Cell[][] = [];
+        for (let i = 0; i < rows.length; i += 1) {
+          denseRows.push(rows[i] ?? []);
+        }
+        return { sheetName: worksheet.name, rows: denseRows };
       });
-      return { sheetName: worksheet.name, rows };
-    });
-  } catch (err) {
-    const textPreview = buffer.toString("utf8", 0, 100).trim();
-    if (textPreview.startsWith("<")) {
-      throw new Error("Invalid file format. The uploaded file is an HTML page or document, not an Excel workbook.");
     }
-    throw new Error(err instanceof Error ? err.message : "Failed to parse Excel workbook.");
+  } catch {
+    // If Excel load failed, attempt CSV fallback below
   }
+
+  // 2. Parse as CSV (fallback for plain text / .csv files or exported sheets)
+  try {
+    const rows = parseCsv(text, {
+      skip_empty_lines: false,
+      relax_column_count: true,
+      delimiter: [",", ";", "\t", "|"]
+    }) as Cell[][];
+    if (rows && rows.length > 0) {
+      return [{ sheetName: filename || "Sheet1", rows }];
+    }
+  } catch {
+    // CSV parse failed as well
+  }
+
+  throw new Error("Unable to parse file. Please upload a valid Excel (.xlsx, .xls) or CSV document.");
 }
 
-export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, title?: string, filename?: string): Promise<PaymentSchedule> {
+export async function parseScheduleWorkbook(
+  buffer: Buffer,
+  user: StoredUser,
+  title?: string,
+  filename?: string,
+  overrides?: ScheduleParseOverrides
+): Promise<PaymentSchedule> {
   const scheduleId = `sch_${nanoid(10)}`;
   const entries: PaymentScheduleEntry[] = [];
   const sheets = await workbookRows(buffer, filename);
@@ -164,29 +265,28 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
     }
 
     const headerRow = sheet.rows[headerRowIndex];
-    if (!headerRow) {
+    if (!headerRow || !Array.isArray(headerRow)) {
       continue;
     }
 
     const headers = headerRow.map(cleanHeader);
     const headingLines = sheet.rows
       .slice(0, headerRowIndex)
-      .flatMap((row) => row.map(asText))
+      .flatMap((row) => (Array.isArray(row) ? row.map(asText) : []))
       .filter(Boolean);
-    const branch = inferBranch(headingLines, sheet.sheetName);
-    const paymentDate = inferPaymentDate(headingLines);
+    const branch = overrides?.branch || overrides?.detectedFields?.branch || inferBranch(headingLines, sheet.sheetName);
+    const paymentDate = overrides?.paymentDate || overrides?.detectedFields?.paymentDate || inferPaymentDate(headingLines, filename);
     branches.add(branch);
     paymentDates.add(paymentDate);
-    const accountIndex = findHeaderIndex(headers, ["acct no", "account no", "account number"]);
-    const clientIndex = findHeaderIndex(headers, ["acct name", "account name", "client name", "customer name"]);
-    const rsaIndex = findHeaderIndex(headers, ["rsa amount", "principal", "amount"]);
-    const threePctIndex = findHeaderIndex(headers, ["3% serv", "3 % serv", "3 service"]);
-    const onePctIndex = findHeaderIndex(headers, ["1% serv", "1 % serv"]);
-    const twoPctIndex = findHeaderIndex(headers, ["2% serv", "2 % serv"]);
-    const netIndex = findHeaderIndex(headers, ["net"]);
-    if (clientIndex < 0) {
-      continue;
-    }
+    const serialIndex = findHeaderIndexByPriority(headers, ["s/no", "s no", "sn", "s n", "serial", "no"]);
+    const accountIndex = findHeaderIndexByPriority(headers, ["acct no", "account no", "account number", "acct number", "account", "app no", "application no", "appl no"]);
+    const clientIndex = findHeaderIndexByPriority(headers, ["acct name", "account name", "client name", "customer name", "client", "customer", "applicant", "beneficiary", "mortgagor", "name"]);
+    const rsaIndex = findHeaderIndexByPriority(headers, ["rsa amount", "rsa amt", "rsa", "principal", "amount", "equity", "paid", "value"]);
+    const threePctIndex = findHeaderIndexByPriority(headers, ["3% serv", "3 % serv", "3 service", "3% serv chg", "3% serv.chg"]);
+    const onePctIndex = findHeaderIndexByPriority(headers, ["1% serv", "1 % serv", "1% serv chg", "1% serv.chg"]);
+    const twoPctIndex = findHeaderIndexByPriority(headers, ["2% serv", "2 % serv", "2% serv chg", "2% serv.chg"]);
+    const netIndex = findHeaderIndexByPriority(headers, ["net amount", "net amt", "net balance", "net"]);
+    const resolvedClientIndex = clientIndex >= 0 ? clientIndex : (headers.length > 1 ? 1 : 0);
 
     for (let index = headerRowIndex + 1; index < sheet.rows.length; index += 1) {
       const row = sheet.rows[index];
@@ -194,17 +294,20 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
         continue;
       }
       const firstCell = asText(row[0]);
-      const clientName = asText(row[clientIndex]);
-      if (!clientName || firstCell.toUpperCase() === "TOTAL" || clientName.toUpperCase() === "TOTAL") {
+      const clientName = asText(row[resolvedClientIndex]);
+      const clientUpper = clientName.toUpperCase();
+      if (!clientName || firstCell.toUpperCase() === "TOTAL" || clientUpper === "TOTAL" || clientUpper === "SUBTOTAL" || clientUpper.startsWith("GRAND TOTAL")) {
         continue;
       }
 
       const onePercentServiceCharge = onePctIndex >= 0 ? asNumber(row[onePctIndex]) : undefined;
       const twoPercentServiceCharge = twoPctIndex >= 0 ? asNumber(row[twoPctIndex]) : undefined;
       const threePercentServiceCharge = threePctIndex >= 0 ? asNumber(row[threePctIndex]) : undefined;
-      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? asNumber(row[rsaIndex]) ?? 0;
+      const rsaAmount = rsaIndex >= 0 ? asNumber(row[rsaIndex]) : (asNumber(row[2]) ?? asNumber(row[1]) ?? asNumber(row[0]));
+      const serviceCharge = onePercentServiceCharge ?? threePercentServiceCharge ?? twoPercentServiceCharge ?? (rsaAmount ? roundCurrency(rsaAmount * 0.01) : 0);
+      const hasImportableValue = Boolean(clientName && (Number(rsaAmount ?? 0) > 0 || Number(serviceCharge) > 0));
 
-      if (!serviceCharge) {
+      if (!hasImportableValue) {
         continue;
       }
 
@@ -217,7 +320,7 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
         accountNo: accountIndex >= 0 ? asText(row[accountIndex]) : undefined,
         applicationNumber: accountIndex >= 0 ? asText(row[accountIndex]) : undefined,
         clientName,
-        rsaAmount: rsaIndex >= 0 ? (asNumber(row[rsaIndex]) ?? 0) : 0,
+        rsaAmount: roundCurrency(rsaAmount ?? 0),
         paymentDate,
         serviceCharge: roundCurrency(serviceCharge),
         threePercentServiceCharge: threePercentServiceCharge ? roundCurrency(threePercentServiceCharge) : undefined,
@@ -237,8 +340,10 @@ export async function parseScheduleWorkbook(buffer: Buffer, user: StoredUser, ti
   const missingAmounts = entries.filter((entry) => !entry.rsaAmount).length;
   if (missingAmounts) warnings.push(`${missingAmounts} row${missingAmounts === 1 ? " has" : "s have"} no RSA amount and cannot be claimed.`);
 
-  const branch = branches.size === 1 ? [...branches][0]! : "Multiple branches";
-  const paymentDate = [...paymentDates].sort().at(-1) ?? nowIso().slice(0, 10);
+  if (overrides?.warnings?.length) warnings.push(...overrides.warnings);
+
+  const branch = overrides?.branch || (branches.size === 1 ? [...branches][0]! : "Multiple branches");
+  const paymentDate = overrides?.paymentDate || [...paymentDates].sort().at(-1) || nowIso().slice(0, 10);
   const totals = scheduleTotals(entries);
   const uploadedAt = nowIso();
 
@@ -277,7 +382,7 @@ export async function parseClaimWorkbook(buffer: Buffer, filename: string | unde
     }
 
     const headers = headerRow.map(cleanHeader);
-    const clientIndex = findHeaderIndex(headers, ["client name", "acct name", "account name", "customer name", "name"]);
+    const clientIndex = findHeaderIndexByPriority(headers, ["client name", "acct name", "account name", "customer name", "client", "customer", "applicant", "beneficiary", "mortgagor", "name"]);
     const roleSpecificCandidates = role === "SUB_DEVELOPER" ? ["2% serv", "2 % serv"] : ["1% serv", "1 % serv"];
     const serviceChargeIndex = findHeaderIndexByPriority(headers, [
       ...roleSpecificCandidates,
