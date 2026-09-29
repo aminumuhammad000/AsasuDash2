@@ -1,0 +1,617 @@
+{
+  "users": [
+    {
+      "id": "usr_admin",
+      "name": "Amina Yusuf",
+      "email": "admin@asasurealty.com",
+      "passwordHash": "$2b$10$9nrTw9urdPXh2oaTazfpF.jqGgZVtf1YqOMROzAU3SArLJZk0jKsi",
+      "role": "ADMIN",
+      "agency": "ASASU Realty HQ",
+      "branch": "Head Office",
+      "phone": "+234 800 000 0001",
+      "active": true,
+      "createdAt": "2026-07-20T08:30:00.000Z"
+    },
+    {
+      "id": "usr_asasu_admin",
+      "name": "ASASU Admin",
+      "email": "asasu@gmail.com",
+      "passwordHash": "$2b$10$n4fxCt1d0mz0Ef5oZ4ozZOqXlqaaNQSg7chhIj.xy3A8uQnttcu5S",
+      "role": "ADMIN",
+      "agency": "ASASU Realty HQ",
+      "branch": "Head Office",
+      "phone": "+234 800 000 0000",
+      "active": true,
+      "createdAt": "2026-07-20T08:30:00.000Z"
+    },
+    {
+      "id": "usr_agent",
+      "name": "Tunde Balogun",
+      "email": "agent@asasurealty.com",
+      "passwordHash": "$2b$10$XmQLIWhe0i6o5zBucLtO.e7pV2vjGSRtikUb0MYPjP8ze6d2lqMj6",
+      "role": "AGENT",
+      "agency": "Yola Partner Desk",
+      "branch": "Yola",
+      "phone": "+234 800 000 0002",
+      "paymentAccount": {
+        "bankName": "Zenith Bank",
+        "accountName": "Tunde Balogun",
+        "accountNumber": "2001234567"
+      },
+      "active": true,
+      "createdAt": "2026-07-20T08:30:00.000Z"
+    },
+    {
+      "id": "usr_developer",
+      "name": "Nkechi Okafor",
+      "email": "developer@asasurealty.com",
+      "passwordHash": "$2b$10$8xDO.3bOgTPZx6A8Q0Hb9uUDw0ojjM0bC7YxyZDuywGiIBzZo5Ccu",
+      "role": "SUB_DEVELOPER",
+      "agency": "Abuja Development Network",
+      "branch": "Abuja",
+      "phone": "+234 800 000 0003",
+      "paymentAccount": {
+        "bankName": "Access Bank",
+        "accountName": "Nkechi Okafor",
+        "accountNumber": "0234567891"
+      },
+      "active": true,
+      "createdAt": "2026-07-20T08:30:00.000Z"
+    },
+    {
+      "id": "usr_VHhFZvodG0",
+      "name": "New Registered Partner",
+      "email": "partner_1790713663081@asasurealty.com",
+      "role": "AGENT",
+      "agency": "ASASU Partner Network",
+      "branch": "Abuja",
+      "phone": "+234 812 345 6789",
+      "active": true,
+      "createdAt": "2026-09-29T20:27:43.086Z",
+      "passwordHash": "$2b$12$WIN753WjQfQjGmRZI9bzmOihC1zKYG8WrCBSOypctulkNotDqqJwm"
+    }
+  ],
+  "schedules": [
+    {
+      "id": "sch_20jul2026",
+      "title": "25% RSA Transactions · Abuja",
+      "scheduleNumber": "AS-ABU-20260720",
+      "branch": "Abuja",
+      "bankName": "Adamawa Mortgage Bank",
+      "paymentDate": "2026-07-20",
+      "sourceFileName": "ASASU ABUJA 20th.xlsx",
+      "status": "PUBLISHED",
+      "uploadedBy": "usr_admin",
+      "uploadedAt": "2026-07-20T08:30:00.000Z",
+      "publishedAt": "2026-07-20T08:35:00.000Z",
+      "entryCount": 12,
+      "totalRsaAmount": 151105326.34,
+      "totalServiceCharge": 1511053.27,
+      "importWarnings": [],
+      "entries": [
+        {
+          "id": "sch_ent_1",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 4,
+          "serialNumber": "1",
+          "accountNo": "001282273061",
+          "applicationNumber": "001282273061",
+          "clientName": "OWOYALUMO, STEPHEN-MUSA",
+          "rsaAmount": 22811592.83,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 228115.93,
+          "onePercentServiceCharge": 228115.93,
+          "twoPercentServiceCharge": 456231.86,
+          "threePercentServiceCharge": 684347.78,
+          "netAmount": 22084433.45
+        },
+        {
+          "id": "sch_ent_2",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 5,
+          "serialNumber": "2",
+          "accountNo": "001281595211",
+          "applicationNumber": "001281595211",
+          "clientName": "YAKUBU, JAMILA ADAMU",
+          "rsaAmount": 17656916.98,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 176569.17,
+          "onePercentServiceCharge": 176569.17,
+          "twoPercentServiceCharge": 353138.34,
+          "threePercentServiceCharge": 529707.51,
+          "netAmount": 17089552.55
+        },
+        {
+          "id": "sch_ent_3",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 6,
+          "serialNumber": "3",
+          "accountNo": "001282104992",
+          "applicationNumber": "001282104992",
+          "clientName": "ALIYU, AHMAD MOHAMMED",
+          "rsaAmount": 15168533.04,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 151685.33,
+          "onePercentServiceCharge": 151685.33,
+          "twoPercentServiceCharge": 303370.66,
+          "threePercentServiceCharge": 455055.99,
+          "netAmount": 14678308.52
+        },
+        {
+          "id": "sch_ent_4",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 7,
+          "serialNumber": "4",
+          "accountNo": "001282326511",
+          "applicationNumber": "001282326511",
+          "clientName": "AGWU, COMFORT ONYE",
+          "rsaAmount": 15105759.24,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 151057.59,
+          "onePercentServiceCharge": 151057.59,
+          "twoPercentServiceCharge": 302115.18,
+          "threePercentServiceCharge": 453172.78,
+          "netAmount": 14617480.7
+        },
+        {
+          "id": "sch_ent_5",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 8,
+          "serialNumber": "5",
+          "accountNo": "001282257941",
+          "applicationNumber": "001282257941",
+          "clientName": "ISTIFANUS, BULUS",
+          "rsaAmount": 11876523.5,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 118765.24,
+          "onePercentServiceCharge": 118765.24,
+          "twoPercentServiceCharge": 237530.47,
+          "threePercentServiceCharge": 356295.7,
+          "netAmount": 11488351.27
+        },
+        {
+          "id": "sch_ent_6",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 9,
+          "serialNumber": "6",
+          "accountNo": "001281810581",
+          "applicationNumber": "001281810581",
+          "clientName": "IGBINOSA, IKPONMWEN BENS",
+          "rsaAmount": 10687514.67,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 106875.15,
+          "onePercentServiceCharge": 106875.15,
+          "twoPercentServiceCharge": 213750.29,
+          "threePercentServiceCharge": 320625.44,
+          "netAmount": 10336201.72
+        },
+        {
+          "id": "sch_ent_7",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 10,
+          "serialNumber": "7",
+          "accountNo": "001282295451",
+          "applicationNumber": "001282295451",
+          "clientName": "DANBATTA, ABUBAKAR SULE",
+          "rsaAmount": 10469744.11,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 104697.44,
+          "onePercentServiceCharge": 104697.44,
+          "twoPercentServiceCharge": 209394.88,
+          "threePercentServiceCharge": 314092.32,
+          "netAmount": 10125182.04
+        },
+        {
+          "id": "sch_ent_8",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 11,
+          "serialNumber": "8",
+          "accountNo": "001282326481",
+          "applicationNumber": "001282326481",
+          "clientName": "TANIMU, ISMAIL MAIDOKI",
+          "rsaAmount": 10177623.39,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 101776.23,
+          "onePercentServiceCharge": 101776.23,
+          "twoPercentServiceCharge": 203552.47,
+          "threePercentServiceCharge": 305328.7,
+          "netAmount": 9842117.06
+        },
+        {
+          "id": "sch_ent_9",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 12,
+          "serialNumber": "9",
+          "accountNo": "001282249451",
+          "applicationNumber": "001282249451",
+          "clientName": "MUSA, IBRAHIM GULANI",
+          "rsaAmount": 10120696.77,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 101206.97,
+          "onePercentServiceCharge": 101206.97,
+          "twoPercentServiceCharge": 202413.94,
+          "threePercentServiceCharge": 303620.9,
+          "netAmount": 9786955.17
+        },
+        {
+          "id": "sch_ent_10",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 13,
+          "serialNumber": "10",
+          "accountNo": "001282041631",
+          "applicationNumber": "001282041631",
+          "clientName": "ADIEZE, CHIEMEKA KELECHI",
+          "rsaAmount": 9388996.59,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 93889.97,
+          "onePercentServiceCharge": 93889.97,
+          "twoPercentServiceCharge": 187779.93,
+          "threePercentServiceCharge": 281669.9,
+          "netAmount": 9077937.7
+        },
+        {
+          "id": "sch_ent_11",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 14,
+          "serialNumber": "11",
+          "accountNo": "001282309831",
+          "applicationNumber": "001282309831",
+          "clientName": "DADA, OLUWADARE EMMANUE",
+          "rsaAmount": 9046226.11,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 90462.26,
+          "onePercentServiceCharge": 90462.26,
+          "twoPercentServiceCharge": 180924.52,
+          "threePercentServiceCharge": 271386.78,
+          "netAmount": 8745793.1
+        },
+        {
+          "id": "sch_ent_12",
+          "scheduleId": "sch_20jul2026",
+          "sourceSheet": "ASASU Realty Abuja",
+          "rowNumber": 15,
+          "serialNumber": "12",
+          "accountNo": "001282261211",
+          "applicationNumber": "001282261211",
+          "clientName": "ABALI, IBRAHIM BABA",
+          "rsaAmount": 8595199.11,
+          "paymentDate": "2026-07-20",
+          "serviceCharge": 85951.99,
+          "onePercentServiceCharge": 85951.99,
+          "twoPercentServiceCharge": 171903.98,
+          "threePercentServiceCharge": 257855.97,
+          "netAmount": 8308747.94
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "id": "clm_seed_agent",
+      "reference": "CLM-20260720-0142",
+      "userId": "usr_agent",
+      "submitterName": "Tunde Balogun",
+      "submitterRole": "AGENT",
+      "scheduleId": "sch_20jul2026",
+      "scheduleTitle": "25% RSA Transactions · Abuja",
+      "branch": "Abuja",
+      "status": "PENDING_VERIFICATION",
+      "commissionRate": 0.01,
+      "totalRsaAmount": 22811592.83,
+      "totalServiceCharge": 228115.93,
+      "commissionAmount": 228115.93,
+      "processingFeeAmount": 0,
+      "totalPayable": 228115.93,
+      "matchScore": 100,
+      "items": [
+        {
+          "id": "itm_seed_agent_1",
+          "scheduleEntryId": "sch_ent_1",
+          "clientName": "OWOYALUMO, STEPHEN-MUSA",
+          "applicationNumber": "001282273061",
+          "rsaAmount": 22811592.83,
+          "serviceCharge": 228115.93,
+          "commissionRate": 0.01,
+          "commissionAmount": 228115.93,
+          "processingFeeApplied": false,
+          "processingFeeAmount": 0,
+          "status": "PENDING",
+          "comparison": {
+            "scheduleEntryId": "sch_ent_1",
+            "officialClientName": "OWOYALUMO, STEPHEN-MUSA",
+            "officialAmount": 22811592.83,
+            "amountDelta": 0,
+            "matchScore": 100,
+            "status": "MATCHED",
+            "notes": [
+              "Claimed directly from the published schedule row."
+            ]
+          }
+        }
+      ],
+      "messages": [],
+      "createdAt": "2026-07-20T09:15:00.000Z",
+      "updatedAt": "2026-07-20T09:15:00.000Z"
+    },
+    {
+      "id": "clm_seed_developer",
+      "reference": "CLM-20260720-0136",
+      "userId": "usr_developer",
+      "submitterName": "Nkechi Okafor",
+      "submitterRole": "SUB_DEVELOPER",
+      "scheduleId": "sch_20jul2026",
+      "scheduleTitle": "25% RSA Transactions · Abuja",
+      "branch": "Abuja",
+      "status": "PAID",
+      "commissionRate": 0.02,
+      "totalRsaAmount": 22564038.17,
+      "totalServiceCharge": 225640.39,
+      "commissionAmount": 451280.76,
+      "processingFeeAmount": 0,
+      "totalPayable": 451280.76,
+      "matchScore": 100,
+      "items": [
+        {
+          "id": "itm_seed_dev_1",
+          "scheduleEntryId": "sch_ent_5",
+          "clientName": "ISTIFANUS, BULUS",
+          "applicationNumber": "001282257941",
+          "rsaAmount": 11876523.5,
+          "serviceCharge": 118765.24,
+          "commissionRate": 0.02,
+          "commissionAmount": 237530.47,
+          "processingFeeApplied": false,
+          "processingFeeAmount": 0,
+          "status": "APPROVED",
+          "comparison": {
+            "scheduleEntryId": "sch_ent_5",
+            "officialClientName": "ISTIFANUS, BULUS",
+            "officialAmount": 11876523.5,
+            "amountDelta": 0,
+            "matchScore": 100,
+            "status": "MATCHED",
+            "notes": [
+              "Claimed directly from the published schedule row."
+            ]
+          }
+        },
+        {
+          "id": "itm_seed_dev_2",
+          "scheduleEntryId": "sch_ent_6",
+          "clientName": "IGBINOSA, IKPONMWEN BENS",
+          "applicationNumber": "001281810581",
+          "rsaAmount": 10687514.67,
+          "serviceCharge": 106875.15,
+          "commissionRate": 0.02,
+          "commissionAmount": 213750.29,
+          "processingFeeApplied": false,
+          "processingFeeAmount": 0,
+          "status": "APPROVED",
+          "comparison": {
+            "scheduleEntryId": "sch_ent_6",
+            "officialClientName": "IGBINOSA, IKPONMWEN BENS",
+            "officialAmount": 10687514.67,
+            "amountDelta": 0,
+            "matchScore": 100,
+            "status": "MATCHED",
+            "notes": [
+              "Claimed directly from the published schedule row."
+            ]
+          }
+        }
+      ],
+      "messages": [],
+      "createdAt": "2026-07-20T08:50:00.000Z",
+      "updatedAt": "2026-07-20T10:10:00.000Z",
+      "paidAt": "2026-07-20T10:10:00.000Z"
+    },
+    {
+      "id": "clm_jgc2TPR7BQ",
+      "reference": "CLM-20260929-0003",
+      "userId": "usr_agent",
+      "submitterName": "Tunde Balogun",
+      "submitterRole": "AGENT",
+      "scheduleId": "sch_20jul2026",
+      "scheduleTitle": "25% RSA Transactions · Abuja",
+      "branch": "Abuja",
+      "status": "PENDING_VERIFICATION",
+      "commissionRate": 0.01,
+      "totalRsaAmount": 17656916.98,
+      "totalServiceCharge": 176569.17,
+      "commissionAmount": 176569.17,
+      "processingFeeAmount": 0,
+      "totalPayable": 176569.17,
+      "matchScore": 100,
+      "items": [
+        {
+          "id": "itm_m4Rj7z-_xz",
+          "scheduleEntryId": "sch_ent_2",
+          "clientName": "YAKUBU, JAMILA ADAMU",
+          "applicationNumber": "001281595211",
+          "rsaAmount": 17656916.98,
+          "serviceCharge": 176569.17,
+          "commissionRate": 0.01,
+          "commissionAmount": 176569.17,
+          "processingFeeApplied": false,
+          "processingFeeAmount": 0,
+          "status": "PENDING",
+          "comparison": {
+            "scheduleEntryId": "sch_ent_2",
+            "officialClientName": "YAKUBU, JAMILA ADAMU",
+            "officialAmount": 17656916.98,
+            "amountDelta": 0,
+            "matchScore": 100,
+            "status": "MATCHED",
+            "notes": [
+              "Claimed directly from a published schedule row."
+            ]
+          }
+        }
+      ],
+      "messages": [],
+      "createdAt": "2026-09-29T20:27:43.678Z",
+      "updatedAt": "2026-09-29T20:27:43.678Z"
+    }
+  ],
+  "disputes": [],
+  "tickets": [
+    {
+      "id": "tkt_seed_1",
+      "userId": "usr_agent",
+      "submitterName": "Tunde Balogun",
+      "subject": "Account number confirmation",
+      "description": "Please confirm the leading zero is retained in schedule searches.",
+      "priority": "MEDIUM",
+      "status": "WAITING",
+      "replies": [],
+      "createdAt": "2026-07-19T12:20:00.000Z",
+      "updatedAt": "2026-07-19T12:30:00.000Z"
+    },
+    {
+      "id": "tkt_J0a-IaSNS1",
+      "userId": "usr_agent",
+      "submitterName": "Tunde Balogun",
+      "subject": "Inquiry regarding payment disbursement schedule",
+      "description": "Hello, please confirm the expected payment schedule date for row 4.",
+      "priority": "MEDIUM",
+      "status": "WAITING",
+      "replies": [
+        {
+          "id": "rep_h-M1G140Br",
+          "authorId": "usr_admin",
+          "authorName": "Amina Yusuf",
+          "body": "This schedule will be disbursed by Wednesday morning.",
+          "createdAt": "2026-09-29T20:27:43.668Z"
+        }
+      ],
+      "createdAt": "2026-09-29T20:27:43.660Z",
+      "updatedAt": "2026-09-29T20:27:43.668Z"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "ntf_seed_1",
+      "userId": "usr_agent",
+      "title": "New payment schedule published",
+      "body": "Abuja · 20 July 2026 is ready. Search your clients and claim in seconds.",
+      "read": false,
+      "createdAt": "2026-07-20T08:35:00.000Z"
+    },
+    {
+      "id": "ntf_l6kyK69oA9",
+      "userId": "usr_admin",
+      "title": "New support ticket",
+      "body": "Tunde Balogun: Inquiry regarding payment disbursement schedule",
+      "read": false,
+      "createdAt": "2026-09-29T20:27:43.660Z"
+    },
+    {
+      "id": "ntf_lQUEzS72u6",
+      "userId": "usr_agent",
+      "title": "Support ticket updated",
+      "body": "Amina Yusuf replied to “Inquiry regarding payment disbursement schedule”.",
+      "read": false,
+      "createdAt": "2026-09-29T20:27:43.668Z"
+    },
+    {
+      "id": "ntf_xGIR2xGJRT",
+      "userId": "usr_agent",
+      "title": "Claim submitted",
+      "body": "CLM-20260929-0003 is pending verification.",
+      "read": false,
+      "createdAt": "2026-09-29T20:27:43.679Z"
+    },
+    {
+      "id": "ntf_rr8FdlpWnc",
+      "userId": "usr_admin",
+      "title": "New claim submitted",
+      "body": "Tunde Balogun submitted 1 client for ₦176,569.17.",
+      "read": false,
+      "createdAt": "2026-09-29T20:27:43.700Z"
+    },
+    {
+      "id": "ntf_O2vIqgLwDT",
+      "userId": "usr_asasu_admin",
+      "title": "New claim submitted",
+      "body": "Tunde Balogun submitted 1 client for ₦176,569.17.",
+      "read": false,
+      "createdAt": "2026-09-29T20:27:43.700Z"
+    }
+  ],
+  "payments": [
+    {
+      "id": "pay_seed_1",
+      "claimId": "clm_seed_developer",
+      "userId": "usr_developer",
+      "recipientName": "Nkechi Okafor",
+      "amount": 451280.76,
+      "paidAt": "2026-07-20T10:10:00.000Z",
+      "reference": "ASASU-20260720-0136",
+      "recipientPhone": "+234 800 000 0003",
+      "paymentAccount": {
+        "bankName": "Access Bank",
+        "accountName": "Nkechi Okafor",
+        "accountNumber": "0234567891"
+      }
+    }
+  ],
+  "auditLog": [
+    {
+      "id": "aud_seed_1",
+      "actorId": "usr_admin",
+      "actorName": "Amina Yusuf",
+      "action": "SCHEDULE_PUBLISHED",
+      "entityType": "SCHEDULE",
+      "entityId": "sch_20jul2026",
+      "detail": "AS-ABU-20260720 published with 12 clients.",
+      "createdAt": "2026-07-20T08:35:00.000Z"
+    },
+    {
+      "id": "aud_jT5bTzcx5S",
+      "actorId": "usr_VHhFZvodG0",
+      "actorName": "New Registered Partner",
+      "action": "REGISTER",
+      "entityType": "AUTH",
+      "entityId": "usr_VHhFZvodG0",
+      "detail": "Created agent account",
+      "ipAddress": "::ffff:127.0.0.1",
+      "userAgent": "node",
+      "createdAt": "2026-09-29T20:27:43.560Z"
+    },
+    {
+      "id": "aud_qvzVWsc4x0",
+      "actorId": "usr_agent",
+      "actorName": "Tunde Balogun",
+      "action": "PAYMENT_ACCOUNT_UPDATED",
+      "entityType": "USER",
+      "entityId": "usr_agent",
+      "detail": "Payment account details updated.",
+      "ipAddress": "::ffff:127.0.0.1",
+      "userAgent": "node",
+      "createdAt": "2026-09-29T20:27:43.575Z"
+    },
+    {
+      "id": "aud_-_rHinCG2m",
+      "actorId": "usr_agent",
+      "actorName": "Tunde Balogun",
+      "action": "CLAIM_SUBMITTED",
+      "entityType": "CLAIM",
+      "entityId": "clm_jgc2TPR7BQ",
+      "detail": "CLM-20260929-0003: 1 rows at 1%.",
+      "ipAddress": "::ffff:127.0.0.1",
+      "userAgent": "node",
+      "createdAt": "2026-09-29T20:27:43.700Z"
+    }
+  ]
+}

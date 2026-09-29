@@ -81,7 +81,7 @@ const sendEmail = loadEmailUtil();
 
 const app = express();
 const server = http.createServer(app);
-const port = Number(process.env.API_PORT ?? process.env.PORT ?? 4300);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
 const corsOrigin = process.env.CLIENT_ORIGIN ? process.env.CLIENT_ORIGIN.split(",").map((origin) => origin.trim()) : true;
 const store = new JsonStore();
 const upload = multer({
@@ -107,9 +107,24 @@ const scheduleUploadRoot = path.resolve(moduleRoot, "../uploads/payment_schedule
 if (!fs.existsSync(scheduleUploadRoot)) {
   fs.mkdirSync(scheduleUploadRoot, { recursive: true });
 }
-const webDistRoot = fs.existsSync(path.resolve(moduleRoot, "../../web/dist"))
-  ? path.resolve(moduleRoot, "../../web/dist")
-  : path.resolve(moduleRoot, "../dist");
+function findWebDistRoot(): string {
+  const candidates = [
+    path.resolve(moduleRoot, "../apps/web/dist"),
+    path.resolve(moduleRoot, "../../web/dist"),
+    path.resolve(moduleRoot, "../web/dist"),
+    path.resolve(process.cwd(), "ASASU_Commission_Portal/apps/web/dist"),
+    path.resolve(process.cwd(), "apps/web/dist"),
+    path.resolve(moduleRoot, "../dist"),
+    path.resolve(process.cwd(), "public")
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, "index.html"))) {
+      return candidate;
+    }
+  }
+  return candidates[0] || path.resolve(moduleRoot, "../apps/web/dist");
+}
+const webDistRoot: string = findWebDistRoot();
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,

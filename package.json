@@ -4,12 +4,15 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node ASASU_Commission_Portal/dist/index.js",
+    "start:server": "node server.js",
+    "build": "npm run build --prefix ASASU_Commission_Portal",
+    "build:all": "npm install --prefix ASASU_Commission_Portal && npm run build --prefix ASASU_Commission_Portal",
+    "dev": "npm run dev --prefix ASASU_Commission_Portal",
     "seed": "node seed.js",
     "seed-users": "node scripts/seedUsers.js",
     "seed:admin": "node scripts/seedAdmin.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node scripts/test-endpoints.mjs"
   },
   "keywords": [],
   "author": "",
