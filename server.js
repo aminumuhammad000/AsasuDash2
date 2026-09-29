@@ -116,8 +116,13 @@ function startApiWorker() {
 
 async function startServer() {
   try {
-    await mongoose.connect(MONGODB_URI);
-    console.log('Connected to MongoDB');
+    try {
+      await mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 3000 });
+      console.log('Connected to MongoDB');
+    } catch (dbErr) {
+      console.warn('[MongoDB Warning] Could not connect to MongoDB:', dbErr.message);
+      console.warn('[MongoDB Warning] Server will continue running using Commission OS core store.');
+    }
 
     startApiWorker();
 
