@@ -20,6 +20,8 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock3,
   Command,
@@ -67,6 +69,7 @@ import type {
   Dispute,
   LeaderboardEntry,
   PaymentAccount,
+  PaymentSchedule,
   PaymentScheduleEntry,
   ScheduleImportPreview,
   Ticket,
@@ -677,7 +680,7 @@ function viewTitle(view: ViewId, staff: boolean) {
 
 function ViewRouter({ activeView, payload, token, refresh, navigate }: { activeView: ViewId; payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
   const staff = isStaff(payload.user);
-  if (activeView === "overview") return staff ? <AdminOverview payload={payload} navigate={navigate} /> : <AgentOverview payload={payload} navigate={navigate} />;
+  if (activeView === "overview") return staff ? <AdminOverview payload={payload} token={token} refresh={refresh} navigate={navigate} /> : <AgentOverview payload={payload} token={token} refresh={refresh} navigate={navigate} />;
   if (activeView === "claim") return <ClaimWorkspace payload={payload} token={token} refresh={refresh} />;
   if (activeView === "claims") return <ClaimsPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "schedules") return <SchedulesPanel payload={payload} token={token} refresh={refresh} navigate={navigate} />;
@@ -803,9 +806,11 @@ function initials(name: string) {
   return name.split(" ").map((part) => part[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
-function AgentOverview({ payload, navigate }: { payload: DashboardPayload; navigate: (view: ViewId) => void }) {
+function AgentOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
   const schedule = payload.schedule;
   const firstName = payload.user.name.split(" ")[0];
+  const [viewingSchedule, setViewingSchedule] = useState<PaymentSchedule | null>(null);
+
   return (
     <div className="page-stack">
       <section className="welcome-panel agent-welcome">
@@ -813,7 +818,10 @@ function AgentOverview({ payload, navigate }: { payload: DashboardPayload; navig
           <span className="hero-pill hero-pill-light"><Zap size={13} /> New schedule ready</span>
           <h2>Good morning, {firstName}.</h2>
           <p>{schedule ? `${schedule.branch} · ${dateOnly(schedule.paymentDate)} is live with ${number(payload.metrics.availableClients)} available clients.` : "We’ll let you know as soon as a new payment schedule is published."}</p>
-          <div className="hero-actions"><button className="button button-light" onClick={() => navigate("claim")}>Find my clients <ArrowRight size={16} /></button><button className="button button-ghost-light" onClick={() => navigate("schedules")}>View schedule</button></div>
+          <div className="hero-actions">
+            <button className="button button-light" onClick={() => navigate("claim")}>Find my clients <ArrowRight size={16} /></button>
+            <button className="button button-ghost-light" onClick={() => schedule ? setViewingSchedule(schedule) : navigate("schedules")}>View schedule</button>
+          </div>
         </div>
         <div className="claim-speed-card">
           <span>Fast-track claim</span>
@@ -825,9 +833,9 @@ function AgentOverview({ payload, navigate }: { payload: DashboardPayload; navig
 
       <section className="metric-grid metric-grid-four">
         <MetricCard label="Total earned" value={shortCurrency(payload.metrics.totalCommissionEarned)} icon={WalletCards} tone="violet" trend="All-time commission" />
-        <MetricCard label="Awaiting review" value={number(payload.metrics.pendingClaims)} icon={Clock3} tone="amber" trend="Claims in progress" />
-        <MetricCard label="Approved claims" value={number(payload.metrics.approvedClaims)} icon={BadgeCheck} tone="green" trend="Verified by operations" />
-        <MetricCard label="Total paid" value={shortCurrency(payload.metrics.totalPaid)} icon={Banknote} tone="blue" trend="Settled to date" />
+        <MetricCard label="Awaiting review" value={number(payload.metrics.pendingClaims)} icon={Clock3} tone="amber" trend="Claims in progress" onClick={() => navigate("claims")} />
+        <MetricCard label="Approved claims" value={number(payload.metrics.approvedClaims)} icon={BadgeCheck} tone="green" trend="Verified by operations" onClick={() => navigate("claims")} />
+        <MetricCard label="Total paid" value={shortCurrency(payload.metrics.totalPaid)} icon={Banknote} tone="blue" trend="Settled to date" onClick={() => navigate("payments")} />
       </section>
 
       <section className="dashboard-grid dashboard-grid-wide">
@@ -842,29 +850,67 @@ function AgentOverview({ payload, navigate }: { payload: DashboardPayload; navig
       </section>
 
       <section className="panel latest-schedule-panel">
-        <PanelHeading eyebrow="Ready to claim" title="Latest payment schedule" aside={<button className="button button-secondary button-small" onClick={() => navigate("claim")}>Open schedule <ArrowRight size={14} /></button>} />
-        {schedule ? <ScheduleSummary schedule={schedule} /> : <EmptyState icon={FileSpreadsheet} title="No published schedule" copy="Published schedules will appear here automatically." />}
+        <PanelHeading
+          eyebrow="Ready to claim"
+          title="Latest payment schedule"
+          aside={
+            <div style={{ display: "flex", gap: "8px" }}>
+              {schedule ? (
+                <button className="button button-secondary button-small" onClick={() => setViewingSchedule(schedule)}>
+                  <Eye size={14} /> Inspect schedule
+                </button>
+              ) : null}
+              <button className="button button-primary button-small" onClick={() => navigate("claim")}>
+                Claim clients <ArrowRight size={14} />
+              </button>
+            </div>
+          }
+        />
+        {schedule ? <ScheduleSummary schedule={schedule} onViewSchedule={() => setViewingSchedule(schedule)} /> : <EmptyState icon={FileSpreadsheet} title="No published schedule" copy="Published schedules will appear here automatically." />}
       </section>
+
+      {viewingSchedule && (
+        <ScheduleDetailModal
+          scheduleId={viewingSchedule.id}
+          initialSchedule={viewingSchedule}
+          token={token}
+          staff={false}
+          onClose={() => setViewingSchedule(null)}
+          onStatusChange={refresh}
+        />
+      )}
     </div>
   );
 }
 
-function AdminOverview({ payload, navigate }: { payload: DashboardPayload; navigate: (view: ViewId) => void }) {
+function AdminOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
   const pending = payload.claims.filter((claim) => pendingStatuses.includes(claim.status));
+  const schedules = payload.schedules ?? [];
+  const [selectedSchedule, setSelectedSchedule] = useState<PaymentSchedule | null>(null);
+
   return (
     <div className="page-stack">
       <section className="operations-ribbon">
-        <div><span className="status-live"><i /> Operations live</span><h2>Financial control, without the spreadsheet drag.</h2><p>Monitor every schedule row from publication to payout.</p></div>
-        <div className="ribbon-actions"><button className="button button-secondary" onClick={() => navigate("schedules")}><UploadCloud size={16} /> Upload schedule</button><button className="button button-primary" onClick={() => navigate("claims")}>Review queue <ArrowRight size={16} /></button></div>
+        <div>
+          <span className="status-live"><i /> Operations live</span>
+          <h2>Financial control, without the spreadsheet drag.</h2>
+          <p>Monitor every schedule row from publication to payout.</p>
+        </div>
+        <div className="ribbon-actions">
+          <button className="button button-secondary" onClick={() => navigate("schedules")}><UploadCloud size={16} /> Upload schedule</button>
+          <button className="button button-primary" onClick={() => navigate("claims")}>Review queue <ArrowRight size={16} /></button>
+        </div>
       </section>
+
       <section className="metric-grid metric-grid-admin">
-        <MetricCard label="Pending claims" value={number(payload.metrics.totalClaimsPending)} icon={Clock3} tone="amber" trend="Needs operations" />
-        <MetricCard label="Paid today" value={shortCurrency(payload.metrics.paidToday)} icon={Banknote} tone="green" trend="Settled today" />
-        <MetricCard label="Open disputes" value={number(payload.metrics.openDisputes)} icon={Gavel} tone="red" trend="Ownership review" />
+        <MetricCard label="Pending claims" value={number(payload.metrics.totalClaimsPending)} icon={Clock3} tone="amber" trend="Needs operations" onClick={() => navigate("claims")} />
+        <MetricCard label="Paid today" value={shortCurrency(payload.metrics.paidToday)} icon={Banknote} tone="green" trend="Settled today" onClick={() => navigate("payments")} />
+        <MetricCard label="Open disputes" value={number(payload.metrics.openDisputes)} icon={Gavel} tone="red" trend="Ownership review" onClick={() => navigate("disputes")} />
         <MetricCard label="Total commission" value={shortCurrency(payload.metrics.totalCommissionEarned)} icon={WalletCards} tone="violet" trend="All submitted" />
-        <MetricCard label="Schedules" value={number(payload.metrics.schedulesUploaded)} icon={FileSpreadsheet} tone="blue" trend="Published & archived" />
+        <MetricCard label="Schedules" value={number(payload.metrics.schedulesUploaded)} icon={FileSpreadsheet} tone="blue" trend="Click to view" onClick={() => navigate("schedules")} />
         <MetricCard label="Approval time" value={`${payload.metrics.averageApprovalHours ?? 0}h`} icon={Zap} tone="slate" trend="Average turnaround" />
       </section>
+
       <section className="dashboard-grid dashboard-grid-balanced">
         <div className="panel chart-panel"><PanelHeading eyebrow="Portfolio" title="Commission velocity" aside={<span className="soft-chip">6-month view</span>} /><TrendChart payload={payload} /></div>
         <div className="panel intelligence-card">
@@ -876,16 +922,81 @@ function AdminOverview({ payload, navigate }: { payload: DashboardPayload; navig
           </div>
         </div>
       </section>
+
+      {/* Uploaded Schedules Section in Admin Overview */}
+      <section className="panel queue-preview">
+        <PanelHeading
+          eyebrow="Schedule repository"
+          title="Uploaded payment schedules"
+          aside={
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="button button-secondary button-small" onClick={() => navigate("schedules")}>
+                <UploadCloud size={14} /> New upload
+              </button>
+              <button className="text-button" onClick={() => navigate("schedules")}>
+                All schedules <ArrowRight size={14} />
+              </button>
+            </div>
+          }
+        />
+        {schedules.length > 0 ? (
+          <div className="recent-schedules-grid">
+            {schedules.slice(0, 4).map((sch) => (
+              <div key={sch.id} className="schedule-card-mini" onClick={() => setSelectedSchedule(sch)} title="Click to view uploaded schedule and client entries">
+                <div className="schedule-card-mini-top">
+                  <div className="file-cell">
+                    <span><FileSpreadsheet size={16} /></span>
+                    <div>
+                      <strong>{sch.title}</strong>
+                      <small>{sch.scheduleNumber}</small>
+                    </div>
+                  </div>
+                  <StatusBadge value={sch.status} />
+                </div>
+                <div className="schedule-card-mini-meta">
+                  <span>{sch.branch}</span>
+                  <span>{dateOnly(sch.paymentDate)}</span>
+                </div>
+                <div className="schedule-card-mini-stats">
+                  <strong>{shortCurrency(sch.totalRsaAmount)}</strong>
+                  <span>{number(sch.entryCount)} clients · Click to inspect <Eye size={12} style={{ verticalAlign: "middle" }} /></span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState compact icon={FileSpreadsheet} title="No schedules uploaded" copy="Upload your first Excel payment schedule to get started." />
+        )}
+      </section>
+
       <section className="panel queue-preview">
         <PanelHeading eyebrow="Priority work" title="Claims awaiting attention" aside={<button className="text-button" onClick={() => navigate("claims")}>Open full queue <ArrowRight size={14} /></button>} />
         <ClaimRows claims={pending.slice(0, 5)} empty="The verification queue is clear." />
       </section>
+
+      {selectedSchedule && (
+        <ScheduleDetailModal
+          scheduleId={selectedSchedule.id}
+          initialSchedule={selectedSchedule}
+          token={token}
+          staff={true}
+          onClose={() => setSelectedSchedule(null)}
+          onStatusChange={refresh}
+        />
+      )}
     </div>
   );
 }
 
-function MetricCard({ label, value, icon: Icon, tone, trend }: { label: string; value: string; icon: typeof WalletCards; tone: string; trend: string }) {
-  return <article className="metric-card"><div className={`metric-icon ${tone}`}><Icon size={18} /></div><span>{label}</span><strong>{value}</strong><small>{trend}</small></article>;
+function MetricCard({ label, value, icon: Icon, tone, trend, onClick }: { label: string; value: string; icon: typeof WalletCards; tone: string; trend: string; onClick?: () => void }) {
+  return (
+    <article className={`metric-card ${onClick ? "clickable" : ""}`} onClick={onClick}>
+      <div className={`metric-icon ${tone}`}><Icon size={18} /></div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{trend}</small>
+    </article>
+  );
 }
 
 function PanelHeading({ eyebrow, title, aside }: { eyebrow?: string; title: string; aside?: React.ReactNode }) {
@@ -915,9 +1026,9 @@ function ActivityFeed({ payload }: { payload: DashboardPayload }) {
   return <div className="activity-feed">{items.map((item, index) => <div className="activity-item" key={item.id}><span className={index === 0 ? "active" : ""}><Bell size={14} /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{dateTime(item.createdAt)}</small></div></div>)}</div>;
 }
 
-function ScheduleSummary({ schedule }: { schedule: NonNullable<DashboardPayload["schedule"]> }) {
+function ScheduleSummary({ schedule, onViewSchedule }: { schedule: NonNullable<DashboardPayload["schedule"]>; onViewSchedule?: () => void }) {
   return (
-    <div className="schedule-summary">
+    <div className={`schedule-summary ${onViewSchedule ? "clickable" : ""}`} onClick={onViewSchedule} style={onViewSchedule ? { cursor: "pointer" } : undefined}>
       <div className="schedule-file-icon"><FileSpreadsheet size={23} /></div>
       <div className="schedule-primary"><strong>{schedule.title}</strong><span>{schedule.scheduleNumber}</span></div>
       <div><small>Branch</small><strong>{schedule.branch}</strong></div>
@@ -925,7 +1036,7 @@ function ScheduleSummary({ schedule }: { schedule: NonNullable<DashboardPayload[
       <div><small>Paid clients</small><strong>{number(schedule.entryCount)}</strong></div>
       <div><small>RSA value</small><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></div>
       {schedule.sourceFileUrl ? (
-        <div className="schedule-source-link"><small>Source file</small><a href={schedule.sourceFileUrl} target="_blank" rel="noreferrer">Download workbook</a></div>
+        <div className="schedule-source-link" onClick={(e) => e.stopPropagation()}><small>Source file</small><a href={schedule.sourceFileUrl} target="_blank" rel="noreferrer">Download workbook</a></div>
       ) : null}
       <StatusBadge value={schedule.status} />
     </div>
@@ -1189,6 +1300,332 @@ function ClaimRows({ claims, empty }: { claims: Claim[]; empty: string }) {
   return <div className="claim-row-list">{claims.map((claim) => <div className="claim-row" key={claim.id}><div className="person-cell"><span>{claim.submitterName?.charAt(0) ?? "?"}</span><div><strong>{claim.submitterName}</strong><small>{claim.reference}</small></div></div><div><small>Clients</small><strong>{claim.items.length}</strong></div><div><small>Commission</small><strong>{currency(claim.totalPayable)}</strong></div><div><small>Match</small><strong>{claim.matchScore}%</strong></div><StatusBadge value={claim.status} /><span className="row-time">{dateTime(claim.createdAt)}</span></div>)}</div>;
 }
 
+function ScheduleDetailModal({
+  scheduleId,
+  initialSchedule,
+  token,
+  staff,
+  onClose,
+  onStatusChange
+}: {
+  scheduleId: string;
+  initialSchedule?: PaymentSchedule | null;
+  token: string;
+  staff: boolean;
+  onClose: () => void;
+  onStatusChange?: () => Promise<void>;
+}) {
+  const [schedule, setSchedule] = useState<PaymentSchedule | null>(initialSchedule ?? null);
+  const [loading, setLoading] = useState(!initialSchedule || !initialSchedule.entries?.length);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [claimFilter, setClaimFilter] = useState<"ALL" | "AVAILABLE" | "CLAIMED">("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  useEffect(() => {
+    let active = true;
+    async function fetchDetails() {
+      try {
+        setLoading(true);
+        const data = await apiRequest<PaymentSchedule>(token, `/payment-schedules/${scheduleId}`);
+        if (active) {
+          setSchedule(data);
+          setError("");
+        }
+      } catch (err) {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Unable to load schedule entries");
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    fetchDetails();
+    return () => {
+      active = false;
+    };
+  }, [scheduleId, token]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  async function toggleStatus() {
+    if (!schedule) return;
+    const nextStatus = schedule.status === "PUBLISHED" ? "ARCHIVED" : "PUBLISHED";
+    setStatusUpdating(true);
+    try {
+      const updated = await apiRequest<PaymentSchedule>(token, `/payment-schedules/${schedule.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: nextStatus })
+      });
+      setSchedule((curr) => (curr ? { ...curr, status: updated.status, publishedAt: updated.publishedAt } : updated));
+      if (onStatusChange) await onStatusChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update schedule status");
+    } finally {
+      setStatusUpdating(false);
+    }
+  }
+
+  const entries = schedule?.entries ?? [];
+  const totalEntriesCount = schedule?.entryCount ?? entries.length;
+  const claimedCount = entries.filter((e) => e.claimState !== "AVAILABLE").length;
+  const availableCount = entries.filter((e) => e.claimState === "AVAILABLE").length;
+
+  const filteredEntries = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    return entries.filter((entry) => {
+      const matchesSearch =
+        !needle ||
+        [
+          entry.clientName,
+          entry.accountNo,
+          entry.applicationNumber,
+          entry.serialNumber,
+          entry.claimedByName
+        ].some((val) => val?.toLowerCase().includes(needle));
+
+      const isClaimed = entry.claimState !== "AVAILABLE";
+      const matchesFilter =
+        claimFilter === "ALL" ||
+        (claimFilter === "AVAILABLE" && !isClaimed) ||
+        (claimFilter === "CLAIMED" && isClaimed);
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [entries, searchQuery, claimFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
+  const currentEntries = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredEntries.slice(start, start + pageSize);
+  }, [filteredEntries, page, pageSize]);
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-card schedule-viewer-modal">
+        {/* Header */}
+        <div className="schedule-viewer-header">
+          <div className="schedule-viewer-title-group">
+            <span className="modal-icon violet"><FileSpreadsheet size={20} /></span>
+            <div>
+              <div className="schedule-viewer-tag-row">
+                <span className="schedule-ref-badge">{schedule?.scheduleNumber || "Schedule"}</span>
+                {schedule && <StatusBadge value={schedule.status} />}
+              </div>
+              <h3>{schedule?.title || "Payment Schedule"}</h3>
+              <p>{schedule?.branch} · {dateOnly(schedule?.paymentDate)} · Uploaded {schedule?.uploadedAt ? dateTime(schedule.uploadedAt) : ""}</p>
+            </div>
+          </div>
+          <div className="schedule-viewer-header-actions">
+            {schedule?.sourceFileUrl && (
+              <a
+                href={schedule.sourceFileUrl}
+                download
+                target="_blank"
+                rel="noreferrer"
+                className="button button-secondary button-small"
+                title="Download original Excel workbook"
+              >
+                <Download size={14} /> Download Excel
+              </a>
+            )}
+            {staff && schedule && (
+              <button
+                className={`button button-small ${schedule.status === "PUBLISHED" ? "button-secondary" : "button-primary"}`}
+                onClick={toggleStatus}
+                disabled={statusUpdating}
+              >
+                {statusUpdating ? <Loader2 className="spin" size={14} /> : schedule.status === "PUBLISHED" ? "Archive" : "Publish"}
+              </button>
+            )}
+            <button className="icon-button" onClick={onClose} aria-label="Close modal"><X size={18} /></button>
+          </div>
+        </div>
+
+        {/* KPI Summary Cards */}
+        <div className="schedule-viewer-kpis">
+          <div className="schedule-kpi-card">
+            <small>Total RSA Volume</small>
+            <strong>{currency(schedule?.totalRsaAmount ?? 0)}</strong>
+            <span>{number(totalEntriesCount)} client records</span>
+          </div>
+          <div className="schedule-kpi-card">
+            <small>Total Service Charge</small>
+            <strong>{currency(schedule?.totalServiceCharge ?? 0)}</strong>
+            <span>Preserved from workbook</span>
+          </div>
+          <div className="schedule-kpi-card">
+            <small>Claimed Clients</small>
+            <strong>{number(claimedCount)}</strong>
+            <span className="kpi-tag amber">{totalEntriesCount ? Math.round((claimedCount / totalEntriesCount) * 100) : 0}% claimed</span>
+          </div>
+          <div className="schedule-kpi-card">
+            <small>Available to Claim</small>
+            <strong>{number(availableCount)}</strong>
+            <span className="kpi-tag green">Open for agents</span>
+          </div>
+        </div>
+
+        {/* Parser Warnings Notice */}
+        {schedule?.importWarnings && schedule.importWarnings.length > 0 && (
+          <div className="import-warnings schedule-viewer-warnings">
+            <CircleAlert size={16} />
+            <div>
+              <strong>{schedule.importWarnings.length} parser notice{schedule.importWarnings.length === 1 ? "" : "s"}</strong>
+              {schedule.importWarnings.map((w, idx) => <p key={idx}>{w}</p>)}
+            </div>
+          </div>
+        )}
+
+        {/* Toolbar: Search + Filter + PageSize */}
+        <div className="schedule-viewer-toolbar">
+          <label className="table-search schedule-search">
+            <Search size={15} />
+            <input
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+              placeholder="Search by client name, account number, or S/N..."
+            />
+            {searchQuery ? (
+              <button type="button" className="clear-search" onClick={() => setSearchQuery("")}>
+                <X size={13} />
+              </button>
+            ) : null}
+          </label>
+
+          <div className="schedule-filter-group">
+            <div className="filter-pill-switch">
+              <button className={claimFilter === "ALL" ? "active" : ""} onClick={() => { setClaimFilter("ALL"); setPage(1); }}>All ({entries.length})</button>
+              <button className={claimFilter === "AVAILABLE" ? "active" : ""} onClick={() => { setClaimFilter("AVAILABLE"); setPage(1); }}>Available ({availableCount})</button>
+              <button className={claimFilter === "CLAIMED" ? "active" : ""} onClick={() => { setClaimFilter("CLAIMED"); setPage(1); }}>Claimed ({claimedCount})</button>
+            </div>
+
+            <select
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              className="page-size-select"
+            >
+              <option value={25}>25 / page</option>
+              <option value={50}>50 / page</option>
+              <option value={100}>100 / page</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Entries Table */}
+        {loading ? (
+          <div className="schedule-viewer-loading">
+            <Loader2 className="spin" size={24} />
+            <p>Loading schedule entries...</p>
+          </div>
+        ) : error ? (
+          <div className="form-error"><CircleAlert size={15} />{error}</div>
+        ) : (
+          <div className="data-table-wrap schedule-entries-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 45 }}>#</th>
+                  <th>Client / Beneficiary</th>
+                  <th>Account No.</th>
+                  <th className="numeric">RSA Amount</th>
+                  <th className="numeric">Service Charge</th>
+                  <th>Status</th>
+                  {staff && <th>Claimant</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {currentEntries.map((entry, idx) => {
+                  const isAvailable = entry.claimState === "AVAILABLE";
+                  return (
+                    <tr key={entry.id || idx}>
+                      <td><span className="row-sn">{(page - 1) * pageSize + idx + 1}</span></td>
+                      <td>
+                        <div className="client-name-cell">
+                          <strong>{entry.clientName}</strong>
+                          {entry.applicationNumber ? <small>App: {entry.applicationNumber}</small> : null}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="account-num">{entry.accountNo || entry.applicationNumber || "—"}</span>
+                      </td>
+                      <td className="numeric">
+                        <strong>{currency(entry.rsaAmount)}</strong>
+                      </td>
+                      <td className="numeric">
+                        <span>{currency(entry.onePercentServiceCharge ?? entry.serviceCharge ?? 0)}</span>
+                      </td>
+                      <td>
+                        {isAvailable ? (
+                          <span className="entry-status-chip available"><CheckCircle2 size={11} /> Available</span>
+                        ) : (
+                          <span className="entry-status-chip claimed"><LockKeyhole size={11} /> Claimed</span>
+                        )}
+                      </td>
+                      {staff ? (
+                        <td>
+                          {entry.claimedByName ? (
+                            <span className="claimant-name">{entry.claimedByName}</span>
+                          ) : isAvailable ? (
+                            <span className="text-muted">—</span>
+                          ) : (
+                            <span className="text-muted">Agent</span>
+                          )}
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!filteredEntries.length && (
+              <EmptyState
+                icon={FileSpreadsheet}
+                title="No matching entries"
+                copy={searchQuery ? "No client matched your search criteria." : "This schedule currently has no entries to display."}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Pagination Footer */}
+        {filteredEntries.length > 0 && (
+          <div className="schedule-viewer-pagination">
+            <span>
+              Showing {Math.min(filteredEntries.length, (page - 1) * pageSize + 1)}–{Math.min(filteredEntries.length, page * pageSize)} of {filteredEntries.length} entries
+            </span>
+            <div className="pagination-controls">
+              <button
+                className="button button-secondary button-small"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
+                <ChevronLeft size={14} /> Prev
+              </button>
+              <span className="page-indicator">Page {page} of {totalPages}</span>
+              <button
+                className="button button-secondary button-small"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SchedulesPanel({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
   const staff = isStaff(payload.user);
   const schedules = payload.schedules ?? [];
@@ -1196,6 +1633,7 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
   const [filePreview, setFilePreview] = useState<LocalSchedulePreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [selectedSchedule, setSelectedSchedule] = useState<PaymentSchedule | null>(null);
 
   async function handleFile(fileToParse: File | null) {
     setFile(fileToParse);
@@ -1254,11 +1692,16 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
         detectedColumns: filePreview.detectedColumns,
         warnings: filePreview.warnings
       } : undefined;
-      await uploadFile(token, "/payment-schedules/upload", file, {
+      const uploaded = await uploadFile<PaymentSchedule>(token, "/payment-schedules/upload", file, {
         title: title ?? "Published schedule",
         metadata: metadata ? JSON.stringify(metadata) : ""
       });
-      setFile(null); setFilePreview(null); setMessage("Schedule published. Every active agent has been notified.");
+      setFile(null);
+      setFilePreview(null);
+      setMessage("Schedule published. Every active agent has been notified.");
+      if (uploaded?.id) {
+        setSelectedSchedule(uploaded);
+      }
       await refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Unable to publish schedule");
@@ -1341,9 +1784,89 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
       ) : null}
 
       <section className="panel table-panel">
-        <PanelHeading eyebrow={staff ? "Schedule management" : "Published schedules"} title={staff ? "Schedule library" : "Your payment schedules"} aside={!staff && payload.schedule ? <button className="button button-primary button-small" onClick={() => navigate("claim")}>Quick claim <ArrowRight size={14} /></button> : null} />
-        <div className="data-table-wrap"><table className="data-table"><thead><tr><th>Schedule</th><th>Branch</th><th>Payment date</th><th>Clients</th><th className="numeric">RSA value</th><th>Status</th><th>Published</th><th /></tr></thead><tbody>{schedules.map((schedule) => <tr key={schedule.id}><td><div className="file-cell"><span><FileSpreadsheet size={18} /></span><div><strong>{schedule.title}</strong><small>{schedule.scheduleNumber}</small></div></div></td><td>{schedule.branch}</td><td>{dateOnly(schedule.paymentDate)}</td><td>{number(schedule.entryCount)}</td><td className="numeric"><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></td><td><StatusBadge value={schedule.status} /></td><td>{dateTime(schedule.publishedAt ?? schedule.uploadedAt)}</td><td>{schedule.status === "PUBLISHED" && !staff ? <button className="table-action" onClick={() => navigate("claim")}>View <ArrowRight size={13} /></button> : <button className="icon-button tiny"><Command size={14} /></button>}</td></tr>)}</tbody></table>{!schedules.length ? <EmptyState icon={FileSpreadsheet} title="No schedules yet" copy="Your first uploaded payment schedule will appear here." /> : null}</div>
+        <PanelHeading
+          eyebrow={staff ? "Schedule management" : "Published schedules"}
+          title={staff ? "Schedule library" : "Your payment schedules"}
+          aside={
+            !staff && payload.schedule ? (
+              <button className="button button-primary button-small" onClick={() => navigate("claim")}>
+                Quick claim <ArrowRight size={14} />
+              </button>
+            ) : null
+          }
+        />
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Schedule</th>
+                <th>Branch</th>
+                <th>Payment date</th>
+                <th>Clients</th>
+                <th className="numeric">RSA value</th>
+                <th>Status</th>
+                <th>Published</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.map((schedule) => (
+                <tr
+                  key={schedule.id}
+                  onClick={() => setSelectedSchedule(schedule)}
+                  style={{ cursor: "pointer" }}
+                  title="Click to view schedule entries"
+                >
+                  <td>
+                    <div className="file-cell">
+                      <span><FileSpreadsheet size={18} /></span>
+                      <div>
+                        <strong>{schedule.title}</strong>
+                        <small>{schedule.scheduleNumber}</small>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{schedule.branch}</td>
+                  <td>{dateOnly(schedule.paymentDate)}</td>
+                  <td>{number(schedule.entryCount)}</td>
+                  <td className="numeric"><strong>{shortCurrency(schedule.totalRsaAmount)}</strong></td>
+                  <td><StatusBadge value={schedule.status} /></td>
+                  <td>{dateTime(schedule.publishedAt ?? schedule.uploadedAt)}</td>
+                  <td>
+                    <button
+                      className="table-action"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSchedule(schedule);
+                      }}
+                    >
+                      View <Eye size={13} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!schedules.length ? (
+            <EmptyState
+              icon={FileSpreadsheet}
+              title="No schedules yet"
+              copy="Your first uploaded payment schedule will appear here."
+            />
+          ) : null}
+        </div>
       </section>
+
+      {selectedSchedule && (
+        <ScheduleDetailModal
+          scheduleId={selectedSchedule.id}
+          initialSchedule={selectedSchedule}
+          token={token}
+          staff={staff}
+          onClose={() => setSelectedSchedule(null)}
+          onStatusChange={refresh}
+        />
+      )}
     </div>
   );
 }

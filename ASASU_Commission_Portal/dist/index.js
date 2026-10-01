@@ -1334,6 +1334,15 @@ app.get("/api/dashboard", requireAuth, async (request, response) => {
     auditLog: isStaffRole(user.role) ? [...data.auditLog].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100) : void 0
   });
 });
+app.get("/api/payment-schedules/:scheduleId", requireAuth, async (request, response) => {
+  const data = await store.read();
+  const schedule = data.schedules.find((item) => item.id === request.params.scheduleId);
+  if (!schedule || schedule.status !== "PUBLISHED" && !isStaffRole(request.user.role)) {
+    return void response.status(404).json({ message: "Schedule not found" });
+  }
+  const decorated = decorateSchedule(schedule, request.user.id, request.user.role, data.claims);
+  response.json(decorated);
+});
 app.get("/api/payment-schedules/:scheduleId/entries", requireAuth, async (request, response) => {
   const data = await store.read();
   const schedule = data.schedules.find((item) => item.id === request.params.scheduleId);
@@ -1344,7 +1353,8 @@ app.get("/api/payment-schedules/:scheduleId/entries", requireAuth, async (reques
   const query = String(request.query.query ?? "").trim().toLowerCase();
   const state = String(request.query.state ?? "ALL");
   const page = Math.max(1, Number(request.query.page ?? 1));
-  const pageSize = Math.min(100, Math.max(10, Number(request.query.pageSize ?? 25)));
+  const rawPageSize = Number(request.query.pageSize ?? 50);
+  const pageSize = rawPageSize <= 0 ? 500 : Math.min(500, Math.max(10, rawPageSize));
   const filtered = decorated.entries.filter((entry) => {
     const matchesSearch = !query || [entry.clientName, entry.accountNo, entry.applicationNumber, entry.serialNumber, schedule.branch].some((value) => value?.toLowerCase().includes(query));
     const matchesState = state === "ALL" || entry.claimState === state;
