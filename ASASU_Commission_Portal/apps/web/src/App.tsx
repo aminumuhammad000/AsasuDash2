@@ -566,7 +566,12 @@ function Portal() {
     ];
 
   const unread = payload?.notifications.filter((item) => !item.read).length ?? 0;
-  function navigate(view: ViewId) {
+  const [claimScheduleId, setClaimScheduleId] = useState<string | null>(null);
+
+  function navigate(view: ViewId, scheduleId?: string) {
+    if (scheduleId) {
+      setClaimScheduleId(scheduleId);
+    }
     setActiveView(view);
     setSidebarOpen(false);
   }
@@ -647,7 +652,15 @@ function Portal() {
           {!payload ? (
             <LoadingWorkspace />
           ) : (
-            <ViewRouter activeView={activeView} payload={payload} token={token} refresh={refresh} navigate={navigate} />
+            <ViewRouter
+              activeView={activeView}
+              payload={payload}
+              token={token}
+              refresh={refresh}
+              navigate={navigate}
+              claimScheduleId={claimScheduleId}
+              onSelectClaimScheduleId={setClaimScheduleId}
+            />
           )}
         </div>
       </main>
@@ -678,10 +691,26 @@ function viewTitle(view: ViewId, staff: boolean) {
   return titles[view];
 }
 
-function ViewRouter({ activeView, payload, token, refresh, navigate }: { activeView: ViewId; payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
+function ViewRouter({
+  activeView,
+  payload,
+  token,
+  refresh,
+  navigate,
+  claimScheduleId,
+  onSelectClaimScheduleId
+}: {
+  activeView: ViewId;
+  payload: DashboardPayload;
+  token: string;
+  refresh: () => Promise<void>;
+  navigate: (view: ViewId, scheduleId?: string) => void;
+  claimScheduleId?: string | null;
+  onSelectClaimScheduleId?: (id: string) => void;
+}) {
   const staff = isStaff(payload.user);
   if (activeView === "overview") return staff ? <AdminOverview payload={payload} token={token} refresh={refresh} navigate={navigate} /> : <AgentOverview payload={payload} token={token} refresh={refresh} navigate={navigate} />;
-  if (activeView === "claim") return <ClaimWorkspace payload={payload} token={token} refresh={refresh} />;
+  if (activeView === "claim") return <ClaimWorkspace payload={payload} token={token} refresh={refresh} selectedScheduleId={claimScheduleId} onSelectScheduleId={onSelectClaimScheduleId} />;
   if (activeView === "claims") return <ClaimsPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "schedules") return <SchedulesPanel payload={payload} token={token} refresh={refresh} navigate={navigate} />;
   if (activeView === "disputes") return <DisputesPanel payload={payload} token={token} refresh={refresh} />;
@@ -806,7 +835,7 @@ function initials(name: string) {
   return name.split(" ").map((part) => part[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
 }
 
-function AgentOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
+function AgentOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId, scheduleId?: string) => void }) {
   const schedule = payload.schedule;
   const firstName = payload.user.name.split(" ")[0];
   const [viewingSchedule, setViewingSchedule] = useState<PaymentSchedule | null>(null);
@@ -877,13 +906,17 @@ function AgentOverview({ payload, token, refresh, navigate }: { payload: Dashboa
           staff={false}
           onClose={() => setViewingSchedule(null)}
           onStatusChange={refresh}
+          onClaimSchedule={(id) => {
+            setViewingSchedule(null);
+            navigate("claim", id);
+          }}
         />
       )}
     </div>
   );
 }
 
-function AdminOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
+function AdminOverview({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId, scheduleId?: string) => void }) {
   const pending = payload.claims.filter((claim) => pendingStatuses.includes(claim.status));
   const schedules = payload.schedules ?? [];
   const [selectedSchedule, setSelectedSchedule] = useState<PaymentSchedule | null>(null);
@@ -1047,8 +1080,38 @@ function Signal({ tone, title, copy, value }: { tone: string; title: string; cop
   return <div className="signal"><span className={tone}><ShieldCheck size={16} /></span><div><strong>{title}</strong><p>{copy}</p></div><em>{value}</em></div>;
 }
 
-function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload; token: string; refresh: () => Promise<void> }) {
-  const schedule = payload.schedule;
+function ClaimWorkspace({
+  payload,
+  token,
+  refresh,
+  selectedScheduleId,
+  onSelectScheduleId
+}: {
+  payload: DashboardPayload;
+  token: string;
+  refresh: () => Promise<void>;
+  selectedScheduleId?: string | null;
+  onSelectScheduleId?: (id: string) => void;
+}) {
+  const publishedSchedules = useMemo(() => {
+    return (payload.schedules ?? []).filter((s) => s.status === "PUBLISHED");
+  }, [payload.schedules]);
+
+  const [currentScheduleId, setCurrentScheduleId] = useState<string>(() => {
+    if (selectedScheduleId && publishedSchedules.some((s) => s.id === selectedScheduleId)) {
+      return selectedScheduleId;
+    }
+    return payload.schedule?.id || publishedSchedules[0]?.id || "";
+  });
+
+  const [activeSchedule, setActiveSchedule] = useState<PaymentSchedule | null>(() => {
+    if (payload.schedule && (!selectedScheduleId || payload.schedule.id === selectedScheduleId)) {
+      return payload.schedule;
+    }
+    return null;
+  });
+
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [stateFilter, setStateFilter] = useState("ALL");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1057,6 +1120,43 @@ function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [disputeEntry, setDisputeEntry] = useState<PaymentScheduleEntry | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectedScheduleId && selectedScheduleId !== currentScheduleId) {
+      setCurrentScheduleId(selectedScheduleId);
+    }
+  }, [selectedScheduleId]);
+
+  useEffect(() => {
+    if (!currentScheduleId) return;
+    if (payload.schedule?.id === currentScheduleId && payload.schedule.entries?.length) {
+      setActiveSchedule(payload.schedule);
+      setSelected(new Set());
+      return;
+    }
+
+    let active = true;
+    async function loadSchedule() {
+      setScheduleLoading(true);
+      try {
+        const data = await apiRequest<PaymentSchedule>(token, `/payment-schedules/${currentScheduleId}`);
+        if (active) {
+          setActiveSchedule(data);
+          setSelected(new Set());
+        }
+      } catch (err) {
+        if (active) {
+          setMessage({ tone: "error", text: err instanceof Error ? err.message : "Unable to load schedule entries" });
+        }
+      } finally {
+        if (active) setScheduleLoading(false);
+      }
+    }
+    loadSchedule();
+    return () => {
+      active = false;
+    };
+  }, [currentScheduleId, token, payload.schedule]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -1069,16 +1169,18 @@ function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  const entries = activeSchedule?.entries ?? [];
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (schedule?.entries ?? []).filter((entry) => {
-      const matchesQuery = !needle || [entry.clientName, entry.accountNo, entry.applicationNumber, entry.serialNumber, schedule?.branch].some((value) => value?.toLowerCase().includes(needle));
+    return entries.filter((entry) => {
+      const matchesQuery = !needle || [entry.clientName, entry.accountNo, entry.applicationNumber, entry.serialNumber, activeSchedule?.branch].some((value) => value?.toLowerCase().includes(needle));
       return matchesQuery && (stateFilter === "ALL" || entry.claimState === stateFilter);
     });
-  }, [query, schedule, stateFilter]);
+  }, [query, entries, stateFilter, activeSchedule?.branch]);
 
-  const selectedRows = (schedule?.entries ?? []).filter((entry) => selected.has(entry.id));
+  const selectedRows = entries.filter((entry) => selected.has(entry.id));
   const commissionTotal = selectedRows.reduce((sum, entry) => sum + entry.rsaAmount * rate, 0);
+  const availableCount = entries.filter((entry) => entry.claimState === "AVAILABLE").length;
 
   function toggle(entry: PaymentScheduleEntry) {
     if (entry.claimState !== "AVAILABLE") return;
@@ -1090,17 +1192,23 @@ function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload
   }
 
   async function submit() {
-    if (!schedule || !selected.size) return;
+    if (!activeSchedule || !selected.size) return;
     setSubmitting(true);
     setMessage(null);
     try {
       const claim = await apiRequest<Claim>(token, "/claims", {
         method: "POST",
-        body: JSON.stringify({ scheduleId: schedule.id, scheduleEntryIds: [...selected], commissionRate: rate })
+        body: JSON.stringify({ scheduleId: activeSchedule.id, scheduleEntryIds: [...selected], commissionRate: rate })
       });
       setMessage({ tone: "success", text: `${claim.reference} submitted. ${claim.items.length} client${claim.items.length === 1 ? " is" : "s are"} now locked to your claim.` });
       setSelected(new Set());
       await refresh();
+      try {
+        const updated = await apiRequest<PaymentSchedule>(token, `/payment-schedules/${activeSchedule.id}`);
+        setActiveSchedule(updated);
+      } catch {
+        // ignore secondary reload error
+      }
     } catch (err) {
       setMessage({ tone: "error", text: err instanceof Error ? err.message : "Unable to submit this claim" });
       await refresh();
@@ -1109,15 +1217,46 @@ function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload
     }
   }
 
-  if (!schedule) return <div className="panel"><EmptyState icon={FileSpreadsheet} title="No published schedule" copy="Operations has not published a payment schedule yet." /></div>;
+  function handleScheduleChange(newId: string) {
+    setCurrentScheduleId(newId);
+    if (onSelectScheduleId) onSelectScheduleId(newId);
+    setMessage(null);
+  }
+
+  if (!publishedSchedules.length && !activeSchedule) {
+    return <div className="panel"><EmptyState icon={FileSpreadsheet} title="No published schedule" copy="Operations has not published a payment schedule yet." /></div>;
+  }
 
   return (
     <div className="claim-workspace">
       <section className="claim-main">
         <div className="schedule-context">
           <div className="schedule-context-icon"><FileSpreadsheet size={22} /></div>
-          <div><span>Now claiming from</span><h2>{schedule.title}</h2><p>{schedule.scheduleNumber} · {schedule.branch} · {dateOnly(schedule.paymentDate)}</p></div>
-          <div className="context-stats"><span><strong>{number(schedule.entryCount)}</strong> clients</span><span><strong>{number(payload.metrics.availableClients)}</strong> available</span></div>
+          <div>
+            <span>Now claiming from</span>
+            <h2>{activeSchedule?.title || "Payment Schedule"}</h2>
+            <p>{activeSchedule?.scheduleNumber} · {activeSchedule?.branch} · {dateOnly(activeSchedule?.paymentDate)}</p>
+          </div>
+          <div className="context-stats">
+            {publishedSchedules.length > 1 ? (
+              <label className="select-control schedule-switch-select" title="Switch between payment schedules">
+                <FileSpreadsheet size={15} />
+                <select
+                  value={currentScheduleId}
+                  onChange={(e) => handleScheduleChange(e.target.value)}
+                  disabled={scheduleLoading}
+                >
+                  {publishedSchedules.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.branch} · {dateOnly(s.paymentDate)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <span><strong>{number(activeSchedule?.entryCount ?? entries.length)}</strong> clients</span>
+            <span><strong>{number(availableCount)}</strong> available</span>
+          </div>
         </div>
         {message ? <div className={`inline-message ${message.tone}`}>{message.tone === "success" ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}{message.text}<button onClick={() => setMessage(null)}><X size={14} /></button></div> : null}
         <div className="claim-toolbar">
@@ -1126,44 +1265,53 @@ function ClaimWorkspace({ payload, token, refresh }: { payload: DashboardPayload
           <span className="result-count">{number(filtered.length)} results</span>
         </div>
         <div className="claim-table-wrap">
-          <table className="claim-table">
-            <thead><tr><th className="checkbox-column" /><th>Client</th><th>Application no.</th><th className="numeric">RSA amount</th><th>Payment date</th><th>Status</th><th className="numeric">Your commission</th><th /></tr></thead>
-            <tbody>
-              {filtered.map((entry) => {
-                const available = entry.claimState === "AVAILABLE";
-                const checked = selected.has(entry.id);
-                return (
-                  <tr key={entry.id} className={`${checked ? "selected" : ""} ${available ? "" : "locked"}`}>
-                    <td><button className={`row-check ${checked ? "checked" : ""}`} onClick={() => toggle(entry)} disabled={!available} aria-label={`Select ${entry.clientName}`}>{checked ? <Check size={13} /> : null}</button></td>
-                    <td><div className="client-cell"><span>{entry.clientName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><div><strong>{entry.clientName}</strong><small>SN {entry.serialNumber ?? entry.rowNumber}</small></div></div></td>
-                    <td><code>{entry.applicationNumber ?? entry.accountNo ?? "—"}</code></td>
-                    <td className="numeric"><strong>{currency(entry.rsaAmount)}</strong></td>
-                    <td>{dateOnly(entry.paymentDate ?? schedule.paymentDate)}</td>
-                    <td><EntryStatus state={entry.claimState ?? "AVAILABLE"} /></td>
-                    <td className="numeric"><strong className="commission-value">{currency(entry.rsaAmount * rate)}</strong><small className="rate-label">{rate * 100}%</small></td>
-                    <td>{entry.claimState === "CLAIMED_BY_ANOTHER" ? <button className="dispute-link" onClick={() => setDisputeEntry(entry)}>File dispute</button> : null}</td>
-                  </tr>
-                );
-              })}
-              {!filtered.length ? <tr><td colSpan={8}><EmptyState compact icon={Search} title="No clients found" copy="Try another name, application number, or filter." /></td></tr> : null}
-            </tbody>
-          </table>
-          <div className="mobile-client-list">
-            {filtered.map((entry) => {
-              const available = entry.claimState === "AVAILABLE";
-              const checked = selected.has(entry.id);
-              return (
-                <article className={`${checked ? "selected" : ""} ${available ? "" : "locked"}`} key={`mobile-${entry.id}`}>
-                  <button className={`row-check ${checked ? "checked" : ""}`} onClick={() => toggle(entry)} disabled={!available} aria-label={`Mobile select ${entry.clientName}`}>{checked ? <Check size={13} /> : null}</button>
-                  <div className="mobile-client-primary"><strong>{entry.clientName}</strong><small>{entry.applicationNumber ?? entry.accountNo ?? "No application number"} · SN {entry.serialNumber ?? entry.rowNumber}</small></div>
-                  <EntryStatus state={entry.claimState ?? "AVAILABLE"} />
-                  <div className="mobile-client-money"><span>RSA amount<strong>{currency(entry.rsaAmount)}</strong></span><span>Your commission<strong>{currency(entry.rsaAmount * rate)}</strong></span></div>
-                  {entry.claimState === "CLAIMED_BY_ANOTHER" ? <button className="dispute-link" onClick={() => setDisputeEntry(entry)}>File dispute <ArrowRight size={12} /></button> : null}
-                </article>
-              );
-            })}
-            {!filtered.length ? <EmptyState compact icon={Search} title="No clients found" copy="Try another name, application number, or filter." /> : null}
-          </div>
+          {scheduleLoading ? (
+            <div className="schedule-viewer-loading" style={{ minHeight: 300 }}>
+              <Loader2 className="spin" size={24} />
+              <p>Loading schedule entries…</p>
+            </div>
+          ) : (
+            <>
+              <table className="claim-table">
+                <thead><tr><th className="checkbox-column" /><th>Client</th><th>Application no.</th><th className="numeric">RSA amount</th><th>Payment date</th><th>Status</th><th className="numeric">Your commission</th><th /></tr></thead>
+                <tbody>
+                  {filtered.map((entry) => {
+                    const available = entry.claimState === "AVAILABLE";
+                    const checked = selected.has(entry.id);
+                    return (
+                      <tr key={entry.id} className={`${checked ? "selected" : ""} ${available ? "" : "locked"}`}>
+                        <td><button className={`row-check ${checked ? "checked" : ""}`} onClick={() => toggle(entry)} disabled={!available} aria-label={`Select ${entry.clientName}`}>{checked ? <Check size={13} /> : null}</button></td>
+                        <td><div className="client-cell"><span>{entry.clientName.split(/[ ,]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><div><strong>{entry.clientName}</strong><small>SN {entry.serialNumber ?? entry.rowNumber}</small></div></div></td>
+                        <td><code>{entry.applicationNumber ?? entry.accountNo ?? "—"}</code></td>
+                        <td className="numeric"><strong>{currency(entry.rsaAmount)}</strong></td>
+                        <td>{dateOnly(entry.paymentDate ?? activeSchedule?.paymentDate)}</td>
+                        <td><EntryStatus state={entry.claimState ?? "AVAILABLE"} /></td>
+                        <td className="numeric"><strong className="commission-value">{currency(entry.rsaAmount * rate)}</strong><small className="rate-label">{rate * 100}%</small></td>
+                        <td>{entry.claimState === "CLAIMED_BY_ANOTHER" ? <button className="dispute-link" onClick={() => setDisputeEntry(entry)}>File dispute</button> : null}</td>
+                      </tr>
+                    );
+                  })}
+                  {!filtered.length ? <tr><td colSpan={8}><EmptyState compact icon={Search} title="No clients found" copy="Try another name, application number, or filter." /></td></tr> : null}
+                </tbody>
+              </table>
+              <div className="mobile-client-list">
+                {filtered.map((entry) => {
+                  const available = entry.claimState === "AVAILABLE";
+                  const checked = selected.has(entry.id);
+                  return (
+                    <article className={`${checked ? "selected" : ""} ${available ? "" : "locked"}`} key={`mobile-${entry.id}`}>
+                      <button className={`row-check ${checked ? "checked" : ""}`} onClick={() => toggle(entry)} disabled={!available} aria-label={`Mobile select ${entry.clientName}`}>{checked ? <Check size={13} /> : null}</button>
+                      <div className="mobile-client-primary"><strong>{entry.clientName}</strong><small>{entry.applicationNumber ?? entry.accountNo ?? "No application number"} · SN {entry.serialNumber ?? entry.rowNumber}</small></div>
+                      <EntryStatus state={entry.claimState ?? "AVAILABLE"} />
+                      <div className="mobile-client-money"><span>RSA amount<strong>{currency(entry.rsaAmount)}</strong></span><span>Your commission<strong>{currency(entry.rsaAmount * rate)}</strong></span></div>
+                      {entry.claimState === "CLAIMED_BY_ANOTHER" ? <button className="dispute-link" onClick={() => setDisputeEntry(entry)}>File dispute <ArrowRight size={12} /></button> : null}
+                    </article>
+                  );
+                })}
+                {!filtered.length ? <EmptyState compact icon={Search} title="No clients found" copy="Try another name, application number, or filter." /> : null}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
@@ -1306,7 +1454,8 @@ function ScheduleDetailModal({
   token,
   staff,
   onClose,
-  onStatusChange
+  onStatusChange,
+  onClaimSchedule
 }: {
   scheduleId: string;
   initialSchedule?: PaymentSchedule | null;
@@ -1314,6 +1463,7 @@ function ScheduleDetailModal({
   staff: boolean;
   onClose: () => void;
   onStatusChange?: () => Promise<void>;
+  onClaimSchedule?: (scheduleId: string) => void;
 }) {
   const [schedule, setSchedule] = useState<PaymentSchedule | null>(initialSchedule ?? null);
   const [loading, setLoading] = useState(!initialSchedule || !initialSchedule.entries?.length);
@@ -1425,6 +1575,18 @@ function ScheduleDetailModal({
             </div>
           </div>
           <div className="schedule-viewer-header-actions">
+            {!staff && schedule && schedule.status === "PUBLISHED" && (
+              <button
+                className="button button-primary button-small"
+                onClick={() => {
+                  onClose();
+                  if (onClaimSchedule) onClaimSchedule(schedule.id);
+                }}
+                title="Quick claim commission from this schedule"
+              >
+                <Zap size={14} /> Quick claim <ArrowRight size={14} />
+              </button>
+            )}
             {schedule?.sourceFileUrl && (
               <a
                 href={schedule.sourceFileUrl}
@@ -1626,7 +1788,7 @@ function ScheduleDetailModal({
   );
 }
 
-function SchedulesPanel({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId) => void }) {
+function SchedulesPanel({ payload, token, refresh, navigate }: { payload: DashboardPayload; token: string; refresh: () => Promise<void>; navigate: (view: ViewId, scheduleId?: string) => void }) {
   const staff = isStaff(payload.user);
   const schedules = payload.schedules ?? [];
   const [file, setFile] = useState<File | null>(null);
@@ -1833,15 +1995,29 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
                   <td><StatusBadge value={schedule.status} /></td>
                   <td>{dateTime(schedule.publishedAt ?? schedule.uploadedAt)}</td>
                   <td>
-                    <button
-                      className="table-action"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedSchedule(schedule);
-                      }}
-                    >
-                      View <Eye size={13} />
-                    </button>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                      {!staff && schedule.status === "PUBLISHED" && (
+                        <button
+                          className="button button-primary button-small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate("claim", schedule.id);
+                          }}
+                          title="Claim commission from this schedule"
+                        >
+                          <Zap size={13} /> Claim
+                        </button>
+                      )}
+                      <button
+                        className="table-action"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSchedule(schedule);
+                        }}
+                      >
+                        View <Eye size={13} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1865,6 +2041,10 @@ function SchedulesPanel({ payload, token, refresh, navigate }: { payload: Dashbo
           staff={staff}
           onClose={() => setSelectedSchedule(null)}
           onStatusChange={refresh}
+          onClaimSchedule={(id) => {
+            setSelectedSchedule(null);
+            navigate("claim", id);
+          }}
         />
       )}
     </div>
