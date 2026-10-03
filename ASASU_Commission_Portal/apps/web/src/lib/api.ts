@@ -91,10 +91,10 @@ export async function downloadFile(token: string, path: string, filename: string
   URL.revokeObjectURL(url);
 }
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, portal?: "admin" | "user") {
   return apiRequest<AuthUser>(undefined, "/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password, portal })
   });
 }
 

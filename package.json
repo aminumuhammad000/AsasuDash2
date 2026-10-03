@@ -9,9 +9,7 @@
     "build": "npm run build --prefix ASASU_Commission_Portal",
     "build:all": "npm install --prefix ASASU_Commission_Portal && npm run build --prefix ASASU_Commission_Portal",
     "dev": "npm run dev --prefix ASASU_Commission_Portal",
-    "seed": "node seed.js",
-    "seed-users": "node scripts/seedUsers.js",
-    "seed:admin": "node scripts/seedAdmin.js",
+    "seed": "node scripts/seed.js",
     "test": "node scripts/test-endpoints.mjs"
   },
   "keywords": [],

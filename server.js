@@ -129,6 +129,7 @@ async function startServer() {
     app.use('/api/auth', require('./routes/auth'));
     app.use('/api/submissions', require('./routes/submissions'));
     app.use('/api/partners', require('./routes/partners'));
+    app.use('/api/users', require('./routes/partners'));
     app.use('/api/tickets', require('./routes/tickets'));
     app.use('/api/settings', require('./routes/settings'));
     app.use('/api/messages', require('./routes/messages'));

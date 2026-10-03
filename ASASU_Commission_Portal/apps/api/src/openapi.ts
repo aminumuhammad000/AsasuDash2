@@ -39,6 +39,9 @@ export const openApiSpec = {
     "/dashboard": {
       get: { summary: "Get the role-scoped operating view", responses: { "200": { description: "Metrics, latest schedule, claims, disputes, payments, notifications, and audit data" } } }
     },
+    "/users/{userId}": {
+      delete: { summary: "Permanently delete a user account (Admin only)", parameters: pathId("userId"), responses: { "200": { description: "User deleted" }, "400": { description: "Cannot delete self or invalid ID" }, "403": { description: "Forbidden" }, "404": { description: "User not found" } } }
+    },
     "/payment-schedules/preview": {
       post: { summary: "Inspect and validate a schedule workbook without publishing", requestBody: { content: { "multipart/form-data": { schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } } } }, responses: { "200": { description: "Detected mapping, rows, totals, and warnings" }, "422": { description: "No valid schedule rows" } } }
     },

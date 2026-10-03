@@ -39,7 +39,7 @@ import {
   publicUser,
   roundCurrency
 } from "./domain.js";
-import type { DatabaseShape } from "./domain.js";
+import type { DatabaseShape, StoredUser } from "./domain.js";
 import { authMiddleware, authResponse, hashPassword, requireRole, verifyPassword } from "./auth.js";
 import { createPreviewRows, parseClaimWorkbook, parseScheduleWorkbook, type ScheduleParseOverrides } from "./parser.js";
 import { createRequire } from "node:module";
@@ -149,6 +149,7 @@ const scheduleManagers: Role[] = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_
 const claimReviewers: Role[] = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN", "FINANCE"];
 const disputeReviewers: Role[] = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "SUPPORT", "BRANCH_ADMIN"];
 const paymentAccountViewers: Role[] = ["SUPER_ADMIN", "ADMIN", "FINANCE", "AUDITOR"];
+const userManagers: Role[] = ["SUPER_ADMIN", "ADMIN"];
 
 function notify(userId: string, title: string, body: string) {
   const notification = { id: `ntf_${nanoid(10)}`, userId, title, body, read: false, createdAt: nowIso() };
@@ -297,16 +298,42 @@ app.post("/api/auth/register", async (request, response) => {
   response.json(authResponse(user));
 });
 
-app.post("/api/auth/login", async (request, response) => {
-  const parsed = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(request.body);
+const handleLogin = async (request: Request, response: Response, forcedPortal?: "admin" | "user") => {
+  const parsed = z
+    .object({
+      email: z.string().email(),
+      password: z.string().min(1),
+      portal: z.enum(["admin", "user"]).optional()
+    })
+    .safeParse(request.body);
   if (!parsed.success) return void response.status(400).json({ message: "A valid email and password are required" });
+
   const data = await store.read();
   const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase() && item.active);
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return void response.status(401).json({ message: "Invalid login credentials" });
   }
+
+  const portalType = forcedPortal || parsed.data.portal;
+
+  if (portalType === "admin" && !isStaffRole(user.role)) {
+    return void response.status(403).json({
+      message: "Access denied. This account does not have administrative privileges. Please use the Partner sign in."
+    });
+  }
+
+  if (portalType === "user" && isStaffRole(user.role)) {
+    return void response.status(403).json({
+      message: "This account has administrative privileges. Please use the Admin Portal sign in."
+    });
+  }
+
   response.json(authResponse(user));
-});
+};
+
+app.post("/api/auth/login", (request, response) => handleLogin(request, response));
+app.post("/api/auth/admin-login", (request, response) => handleLogin(request, response, "admin"));
+app.post("/api/auth/user-login", (request, response) => handleLogin(request, response, "user"));
 
 app.get("/api/me", requireAuth, (request, response) => response.json(publicUser(request.user!)));
 
@@ -339,6 +366,68 @@ app.patch("/api/me/payment-account", requireAuth, async (request, response) => {
   if (!updatedUser) return void response.status(404).json({ message: "User not found" });
   response.json(publicUser(updatedUser));
 });
+
+const deleteUserHandler = async (request: Request, response: Response) => {
+  const targetId = String(request.params.userId || request.params.id || "");
+  if (!targetId) {
+    return void response.status(400).json({ message: "User ID is required" });
+  }
+
+  if (targetId === request.user!.id) {
+    return void response.status(400).json({ message: "You cannot delete your own account" });
+  }
+
+  let deletedUser: StoredUser | undefined;
+  await store.mutate((data) => {
+    const userIndex = data.users.findIndex((item) => item.id === targetId || (item as any)._id === targetId);
+    if (userIndex === -1) return;
+
+    const user = data.users[userIndex];
+    if (!user) return;
+    deletedUser = user;
+    data.users.splice(userIndex, 1);
+    data.notifications = data.notifications.filter((item) => item.userId !== targetId);
+
+    logAction(
+      data,
+      request,
+      "USER_DELETED",
+      "USER",
+      targetId,
+      `Admin ${request.user!.name} permanently deleted user account: ${user.name} (${user.email}).`
+    );
+  });
+
+  if (!deletedUser) {
+    return void response.status(404).json({ message: "User not found" });
+  }
+
+  // Also remove from MongoDB if connected
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const User = mongoose.models.User || mongoose.model("User");
+      if (User) {
+        if (mongoose.Types.ObjectId.isValid(targetId)) {
+          await User.findByIdAndDelete(targetId);
+        } else {
+          await User.deleteOne({ email: (deletedUser as any).email?.toLowerCase() });
+        }
+      }
+    }
+  } catch {
+    // Non-fatal if mongo is not connected
+  }
+
+  response.json({
+    ok: true,
+    message: `User ${(deletedUser as any).name} has been deleted successfully.`,
+    userId: targetId
+  });
+};
+
+app.delete("/api/users/:userId", requireAuth, requireRole(...userManagers), deleteUserHandler);
+app.delete("/api/partners/:id", requireAuth, requireRole(...userManagers), deleteUserHandler);
 
 app.get("/api/dashboard", requireAuth, async (request, response) => {
   const data = await store.read();

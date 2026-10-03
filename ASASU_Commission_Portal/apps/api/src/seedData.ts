@@ -74,9 +74,9 @@ export function createSeedData(): DatabaseShape {
   const users: StoredUser[] = [
     {
       id: "usr_admin",
-      name: "Amina Yusuf",
+      name: "ASASU Admin",
       email: "admin@asasurealty.com",
-      passwordHash: hash("Admin@2026"),
+      passwordHash: hash("Admin@123456"),
       role: "ADMIN",
       agency: "ASASU Realty HQ",
       branch: "Head Office",

@@ -1,3 +1,5 @@
+import "./chunk-UP2VWCW5.js";
+
 // src/index.ts
 import dotenv from "dotenv";
 import http from "http";
@@ -711,6 +713,9 @@ var openApiSpec = {
     "/dashboard": {
       get: { summary: "Get the role-scoped operating view", responses: { "200": { description: "Metrics, latest schedule, claims, disputes, payments, notifications, and audit data" } } }
     },
+    "/users/{userId}": {
+      delete: { summary: "Permanently delete a user account (Admin only)", parameters: pathId("userId"), responses: { "200": { description: "User deleted" }, "400": { description: "Cannot delete self or invalid ID" }, "403": { description: "Forbidden" }, "404": { description: "User not found" } } }
+    },
     "/payment-schedules/preview": {
       post: { summary: "Inspect and validate a schedule workbook without publishing", requestBody: { content: { "multipart/form-data": { schema: { type: "object", required: ["file"], properties: { file: { type: "string", format: "binary" } } } } } }, responses: { "200": { description: "Detected mapping, rows, totals, and warnings" }, "422": { description: "No valid schedule rows" } } }
     },
@@ -824,9 +829,9 @@ function createSeedData() {
   const users = [
     {
       id: "usr_admin",
-      name: "Amina Yusuf",
+      name: "ASASU Admin",
       email: "admin@asasurealty.com",
-      passwordHash: hash("Admin@2026"),
+      passwordHash: hash("Admin@123456"),
       role: "ADMIN",
       agency: "ASASU Realty HQ",
       branch: "Head Office",
@@ -1143,6 +1148,7 @@ var scheduleManagers = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN"];
 var claimReviewers = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN", "FINANCE"];
 var disputeReviewers = ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "SUPPORT", "BRANCH_ADMIN"];
 var paymentAccountViewers = ["SUPER_ADMIN", "ADMIN", "FINANCE", "AUDITOR"];
+var userManagers = ["SUPER_ADMIN", "ADMIN"];
 function notify(userId, title, body) {
   const notification = { id: `ntf_${nanoid2(10)}`, userId, title, body, read: false, createdAt: nowIso() };
   io.to(userId).emit("notification", notification);
@@ -1272,16 +1278,34 @@ app.post("/api/auth/register", async (request, response) => {
   await store.write(data);
   response.json(authResponse(user));
 });
-app.post("/api/auth/login", async (request, response) => {
-  const parsed = z.object({ email: z.string().email(), password: z.string().min(1) }).safeParse(request.body);
+var handleLogin = async (request, response, forcedPortal) => {
+  const parsed = z.object({
+    email: z.string().email(),
+    password: z.string().min(1),
+    portal: z.enum(["admin", "user"]).optional()
+  }).safeParse(request.body);
   if (!parsed.success) return void response.status(400).json({ message: "A valid email and password are required" });
   const data = await store.read();
   const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase() && item.active);
   if (!user || !await verifyPassword(parsed.data.password, user.passwordHash)) {
     return void response.status(401).json({ message: "Invalid login credentials" });
   }
+  const portalType = forcedPortal || parsed.data.portal;
+  if (portalType === "admin" && !isStaffRole(user.role)) {
+    return void response.status(403).json({
+      message: "Access denied. This account does not have administrative privileges. Please use the Partner sign in."
+    });
+  }
+  if (portalType === "user" && isStaffRole(user.role)) {
+    return void response.status(403).json({
+      message: "This account has administrative privileges. Please use the Admin Portal sign in."
+    });
+  }
   response.json(authResponse(user));
-});
+};
+app.post("/api/auth/login", (request, response) => handleLogin(request, response));
+app.post("/api/auth/admin-login", (request, response) => handleLogin(request, response, "admin"));
+app.post("/api/auth/user-login", (request, response) => handleLogin(request, response, "user"));
 app.get("/api/me", requireAuth, (request, response) => response.json(publicUser(request.user)));
 app.patch("/api/me/payment-account", requireAuth, async (request, response) => {
   const parsed = z.object({
@@ -1309,6 +1333,57 @@ app.patch("/api/me/payment-account", requireAuth, async (request, response) => {
   if (!updatedUser) return void response.status(404).json({ message: "User not found" });
   response.json(publicUser(updatedUser));
 });
+var deleteUserHandler = async (request, response) => {
+  const targetId = String(request.params.userId || request.params.id || "");
+  if (!targetId) {
+    return void response.status(400).json({ message: "User ID is required" });
+  }
+  if (targetId === request.user.id) {
+    return void response.status(400).json({ message: "You cannot delete your own account" });
+  }
+  let deletedUser;
+  await store.mutate((data) => {
+    const userIndex = data.users.findIndex((item) => item.id === targetId || item._id === targetId);
+    if (userIndex === -1) return;
+    const user = data.users[userIndex];
+    if (!user) return;
+    deletedUser = user;
+    data.users.splice(userIndex, 1);
+    data.notifications = data.notifications.filter((item) => item.userId !== targetId);
+    logAction(
+      data,
+      request,
+      "USER_DELETED",
+      "USER",
+      targetId,
+      `Admin ${request.user.name} permanently deleted user account: ${user.name} (${user.email}).`
+    );
+  });
+  if (!deletedUser) {
+    return void response.status(404).json({ message: "User not found" });
+  }
+  try {
+    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const User = mongoose.models.User || mongoose.model("User");
+      if (User) {
+        if (mongoose.Types.ObjectId.isValid(targetId)) {
+          await User.findByIdAndDelete(targetId);
+        } else {
+          await User.deleteOne({ email: deletedUser.email?.toLowerCase() });
+        }
+      }
+    }
+  } catch {
+  }
+  response.json({
+    ok: true,
+    message: `User ${deletedUser.name} has been deleted successfully.`,
+    userId: targetId
+  });
+};
+app.delete("/api/users/:userId", requireAuth, requireRole(...userManagers), deleteUserHandler);
+app.delete("/api/partners/:id", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.get("/api/dashboard", requireAuth, async (request, response) => {
   const data = await store.read();
   const user = request.user;

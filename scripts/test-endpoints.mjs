@@ -28,32 +28,56 @@ async function runTests() {
     log('GET /api/openapi.json', false, err.message);
   }
 
-  // 3. Admin Login
+  // 3. Admin Login (using Admin@123456 & portal: admin)
   try {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@asasurealty.com', password: 'Admin@2026' })
+      body: JSON.stringify({ email: 'admin@asasurealty.com', password: 'Admin@123456', portal: 'admin' })
     });
     const data = await res.json();
     adminToken = data.token;
-    log('POST /api/auth/login (Admin)', res.ok && !!data.token, `role: ${data.role}`);
+    log('POST /api/auth/login (Admin Portal)', res.ok && !!data.token, `role: ${data.role}`);
   } catch (err) {
-    log('POST /api/auth/login (Admin)', false, err.message);
+    log('POST /api/auth/login (Admin Portal)', false, err.message);
   }
 
-  // 4. Agent Login
+  // 3b. Portal separation: Agent trying to log in via Admin Portal (should be 403)
   try {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'agent@asasurealty.com', password: 'Agent@2026' })
+      body: JSON.stringify({ email: 'agent@asasurealty.com', password: 'Agent@2026', portal: 'admin' })
+    });
+    log('POST /api/auth/login (Agent on Admin Portal denied)', res.status === 403, `status: ${res.status}`);
+  } catch (err) {
+    log('POST /api/auth/login (Agent on Admin Portal denied)', false, err.message);
+  }
+
+  // 4. Agent Login (using portal: user)
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'agent@asasurealty.com', password: 'Agent@2026', portal: 'user' })
     });
     const data = await res.json();
     agentToken = data.token;
-    log('POST /api/auth/login (Agent)', res.ok && !!data.token, `role: ${data.role}`);
+    log('POST /api/auth/login (Agent Portal)', res.ok && !!data.token, `role: ${data.role}`);
   } catch (err) {
-    log('POST /api/auth/login (Agent)', false, err.message);
+    log('POST /api/auth/login (Agent Portal)', false, err.message);
+  }
+
+  // 4b. Portal separation: Admin trying to log in via Partner Portal (should be 403)
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'admin@asasurealty.com', password: 'Admin@123456', portal: 'user' })
+    });
+    log('POST /api/auth/login (Admin on Partner Portal denied)', res.status === 403, `status: ${res.status}`);
+  } catch (err) {
+    log('POST /api/auth/login (Admin on Partner Portal denied)', false, err.message);
   }
 
   // 5. Invalid Credentials Rejection
@@ -227,6 +251,64 @@ async function runTests() {
     log('GET /api/payments/export.csv', res.ok && text.includes('Payment ID'), `csvBytes: ${text.length}`);
   } catch (err) {
     log('GET /api/payments/export.csv', false, err.message);
+  }
+
+  // 16. DELETE /api/users/:userId - Agent denied (403)
+  try {
+    const res = await fetch(`${BASE_URL}/api/users/usr_developer`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${agentToken}` }
+    });
+    log('DELETE /api/users/:userId (Agent denied)', res.status === 403, `status: ${res.status}`);
+  } catch (err) {
+    log('DELETE /api/users/:userId (Agent denied)', false, err.message);
+  }
+
+  // 17. DELETE /api/users/:userId - Self-deletion blocked (400)
+  try {
+    const res = await fetch(`${BASE_URL}/api/users/usr_admin`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` }
+    });
+    log('DELETE /api/users/:userId (Self-deletion blocked)', res.status === 400, `status: ${res.status}`);
+  } catch (err) {
+    log('DELETE /api/users/:userId (Self-deletion blocked)', false, err.message);
+  }
+
+  // 18. Register temporary user then delete by Admin
+  try {
+    const regRes = await fetch(`${BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Delete Test User',
+        email: `deltest_${Date.now()}@asasurealty.com`,
+        password: 'Password@123',
+        agency: 'Test Agency',
+        role: 'AGENT'
+      })
+    });
+    const regData = await regRes.json();
+    const tempUserId = regData.id;
+
+    if (tempUserId) {
+      const delRes = await fetch(`${BASE_URL}/api/users/${tempUserId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      const delData = await delRes.json();
+      log('DELETE /api/users/:userId (Admin success)', delRes.status === 200 && delData.ok === true, `deleted: ${tempUserId}`);
+
+      const repeatRes = await fetch(`${BASE_URL}/api/users/${tempUserId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` }
+      });
+      log('DELETE /api/users/:userId (Already deleted 404)', repeatRes.status === 404, `status: ${repeatRes.status}`);
+    } else {
+      log('DELETE /api/users/:userId (Admin success)', false, 'Could not create temp user');
+    }
+  } catch (err) {
+    log('DELETE /api/users/:userId (Admin success)', false, err.message);
   }
 
   console.log('\n=======================================');

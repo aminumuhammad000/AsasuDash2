@@ -11,6 +11,7 @@ import {
 import { io } from "socket.io-client";
 import {
   Activity,
+  AlertTriangle,
   ArrowRight,
   BadgeCheck,
   Banknote,
@@ -52,6 +53,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Trash2,
   UploadCloud,
   UserRound,
   Users,
@@ -327,6 +329,12 @@ export default function App() {
 function LoginScreen() {
   const login = useSession((state) => state.login);
   const register = useSession((state) => state.register);
+  const initialIsAdmin = typeof window !== "undefined" && (
+    window.location.search.includes("admin") ||
+    window.location.hash.includes("admin") ||
+    window.location.pathname.startsWith("/admin")
+  );
+  const [portalType, setPortalType] = useState<"user" | "admin">(initialIsAdmin ? "admin" : "user");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -347,7 +355,7 @@ function LoginScreen() {
     const trimmedEmail = email.trim().toLowerCase();
     const trimmedPassword = password.trim();
     try {
-      await login(trimmedEmail, trimmedPassword);
+      await login(trimmedEmail, trimmedPassword, portalType);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {
@@ -414,19 +422,51 @@ function LoginScreen() {
             <BrandMark />
             <div><strong>ASASU</strong><small>Commission OS</small></div>
           </div>
+
+          <div className="login-portal-switch">
+            <button
+              type="button"
+              className={portalType === "user" ? "active" : ""}
+              onClick={() => { setPortalType("user"); setError(""); setSuccess(""); }}
+            >
+              <UserRound size={15} /> Partner Portal
+            </button>
+            <button
+              type="button"
+              className={portalType === "admin" ? "active admin-tab" : ""}
+              onClick={() => { setPortalType("admin"); setMode("login"); setError(""); setSuccess(""); }}
+            >
+              <ShieldCheck size={15} /> Admin Portal
+            </button>
+          </div>
+
           <div className="login-card-heading">
-            <span className="eyebrow">Secure workspace</span>
-            <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
-            <p>{mode === "login" ? "Use your ASASU partner or operations account." : "Create an agent or sub-developer account to start submitting claims."}</p>
+            {portalType === "admin" ? (
+              <>
+                <span className="admin-badge"><ShieldCheck size={13} /> Staff & Admin Access</span>
+                <h2>Admin Sign In</h2>
+                <p>Enter your administrative credentials to manage schedules, approve claims, and review partners.</p>
+              </>
+            ) : (
+              <>
+                <span className="eyebrow">Partner Workspace</span>
+                <h2>{mode === "login" ? "Partner Sign In" : "Create partner account"}</h2>
+                <p>{mode === "login" ? "Submit commission claims, track client payouts, and view published schedules." : "Create an agent or sub-developer account to start submitting claims."}</p>
+              </>
+            )}
           </div>
-          <div className="login-mode-switch">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }}>Sign in</button>
-            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); setSuccess(""); }}>Create account</button>
-          </div>
+
+          {portalType === "user" ? (
+            <div className="login-mode-switch">
+              <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }}>Sign in</button>
+              <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); setSuccess(""); }}>Create account</button>
+            </div>
+          ) : null}
+
           {mode === "login" ? (
             <form onSubmit={submit}>
               <label className="field-label">
-                <span>Work email</span>
+                <span>{portalType === "admin" ? "Admin email" : "Partner email"}</span>
                 <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
               </label>
               <label className="field-label">
@@ -436,12 +476,19 @@ function LoginScreen() {
                   <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>{visible ? <Moon size={17} /> : <Sun size={17} />}</button>
                 </span>
               </label>
-              <div className="login-options"><label><input type="checkbox" defaultChecked /> Keep me signed in</label><button type="button">Forgot password?</button></div>
+              <div className="login-options">
+                <label><input type="checkbox" defaultChecked /> Keep me signed in</label>
+                {portalType === "admin" ? (
+                  <button type="button" onClick={() => { setPortalType("user"); setError(""); }}>← Partner Portal</button>
+                ) : (
+                  <button type="button" onClick={() => { setPortalType("admin"); setMode("login"); setError(""); }}>Admin Login →</button>
+                )}
+              </div>
               {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
               {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
               <button className="button button-primary login-button" type="submit" disabled={loading}>
-                {loading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
-                {loading ? "Verifying…" : "Enter workspace"}
+                {loading ? <Loader2 className="spin" size={17} /> : portalType === "admin" ? <ShieldCheck size={17} /> : <LockKeyhole size={17} />}
+                {loading ? "Verifying…" : portalType === "admin" ? "Enter Admin Workspace" : "Enter Partner Workspace"}
               </button>
             </form>
           ) : (
@@ -717,7 +764,7 @@ function ViewRouter({
   if (activeView === "payments") return <PaymentsPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "support") return <SupportPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "leaderboard") return <LeaderboardPanel payload={payload} />;
-  if (activeView === "people") return <PeoplePanel payload={payload} />;
+  if (activeView === "people") return <PeoplePanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "audit") return <AuditPanel payload={payload} />;
   return null;
 }
@@ -2193,9 +2240,243 @@ function PaymentsPanel({ payload, token, refresh }: { payload: DashboardPayload;
   );
 }
 
-function PeoplePanel({ payload }: { payload: DashboardPayload }) {
+function PeoplePanel({
+  payload,
+  token,
+  refresh
+}: {
+  payload: DashboardPayload;
+  token: string;
+  refresh: () => Promise<void>;
+}) {
   const users = payload.users ?? [];
-  return <div className="page-stack"><section className="page-heading-row"><div><span className="eyebrow">Identity & access</span><h2>People, roles, and partner status.</h2><p>Keep every user attached to the right workspace, branch, and permission level.</p></div><button className="button button-primary"><UserRound size={16} /> Invite partner</button></section><section className="metric-grid metric-grid-four"><MetricCard label="Active users" value={number(users.filter((user) => user.active).length)} icon={Users} tone="green" trend="Can access workspace" /><MetricCard label="Agents" value={number(users.filter((user) => user.role === "AGENT").length)} icon={UserRound} tone="violet" trend="Standard 1% tier" /><MetricCard label="Sub-developers" value={number(users.filter((user) => user.role === "SUB_DEVELOPER").length)} icon={Building2} tone="blue" trend="1.5% or 2% tier" /><MetricCard label="Staff" value={number(users.filter(isStaff).length)} icon={ShieldCheck} tone="amber" trend="Controlled access" /></section><section className="panel table-panel"><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Person</th><th>Role</th><th>Agency</th><th>Branch</th><th>Phone</th><th>Status</th><th>Joined</th><th /></tr></thead><tbody>{users.map((user) => <tr key={user.id}><td><div className="person-cell"><span>{user.name.charAt(0)}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div></td><td><span className="role-badge">{titleCase(user.role)}</span></td><td>{user.agency}</td><td>{user.branch ?? "—"}</td><td>{user.phone ?? "—"}</td><td><span className={`entry-status ${user.active ? "available" : "locked"}`}><i />{user.active ? "Active" : "Disabled"}</span></td><td>{dateOnly(user.createdAt.slice(0, 10))}</td><td><button className="icon-button tiny"><Command size={14} /></button></td></tr>)}</tbody></table></div></section></div>;
+  const isAdmin = payload.user.role === "ADMIN" || payload.user.role === "SUPER_ADMIN";
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
+  async function handleDeleteConfirm() {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiRequest(token, `/users/${userToDelete.id}`, {
+        method: "DELETE"
+      });
+      const deletedName = userToDelete.name;
+      setUserToDelete(null);
+      setDeleteSuccess(`User "${deletedName}" has been successfully deleted.`);
+      setTimeout(() => setDeleteSuccess(null), 5000);
+      await refresh();
+    } catch (err: any) {
+      setDeleteError(err?.message || "Failed to delete user. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <div className="page-stack">
+      <section className="page-heading-row">
+        <div>
+          <span className="eyebrow">Identity & access</span>
+          <h2>People, roles, and partner status.</h2>
+          <p>Keep every user attached to the right workspace, branch, and permission level.</p>
+        </div>
+        <button className="button button-primary">
+          <UserRound size={16} /> Invite partner
+        </button>
+      </section>
+
+      {deleteSuccess ? (
+        <div className="form-success">
+          <CheckCircle2 size={16} />
+          <span>{deleteSuccess}</span>
+        </div>
+      ) : null}
+
+      <section className="metric-grid metric-grid-four">
+        <MetricCard
+          label="Active users"
+          value={number(users.filter((user) => user.active).length)}
+          icon={Users}
+          tone="green"
+          trend="Can access workspace"
+        />
+        <MetricCard
+          label="Agents"
+          value={number(users.filter((user) => user.role === "AGENT").length)}
+          icon={UserRound}
+          tone="violet"
+          trend="Standard 1% tier"
+        />
+        <MetricCard
+          label="Sub-developers"
+          value={number(users.filter((user) => user.role === "SUB_DEVELOPER").length)}
+          icon={Building2}
+          tone="blue"
+          trend="1.5% or 2% tier"
+        />
+        <MetricCard
+          label="Staff"
+          value={number(users.filter(isStaff).length)}
+          icon={ShieldCheck}
+          tone="amber"
+          trend="Controlled access"
+        />
+      </section>
+
+      <section className="panel table-panel">
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Role</th>
+                <th>Agency</th>
+                <th>Branch</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => {
+                const isSelf = user.id === payload.user.id;
+                const canDelete = isAdmin && !isSelf;
+                return (
+                  <tr key={user.id}>
+                    <td>
+                      <div className="person-cell">
+                        <span>{user.name.charAt(0)}</span>
+                        <div>
+                          <strong>{user.name}</strong>
+                          <small>{user.email}</small>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="role-badge">{titleCase(user.role)}</span>
+                    </td>
+                    <td>{user.agency}</td>
+                    <td>{user.branch ?? "—"}</td>
+                    <td>{user.phone ?? "—"}</td>
+                    <td>
+                      <span className={`entry-status ${user.active ? "available" : "locked"}`}>
+                        <i />
+                        {user.active ? "Active" : "Disabled"}
+                      </span>
+                    </td>
+                    <td>{dateOnly(user.createdAt.slice(0, 10))}</td>
+                    <td style={{ textAlign: "right" }}>
+                      {canDelete ? (
+                        <button
+                          type="button"
+                          className="icon-button tiny danger-action"
+                          title={`Delete ${user.name}`}
+                          onClick={() => {
+                            setDeleteError(null);
+                            setUserToDelete(user);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : isSelf ? (
+                        <span className="self-tag" title="Your account">
+                          You
+                        </span>
+                      ) : (
+                        <button
+                          className="icon-button tiny"
+                          disabled
+                          style={{ opacity: 0.3, cursor: "not-allowed" }}
+                        >
+                          <Command size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {userToDelete ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isDeleting) {
+              setUserToDelete(null);
+            }
+          }}
+        >
+          <div className="modal-card user-delete-modal">
+            <div className="modal-heading">
+              <span className="modal-icon red">
+                <Trash2 size={19} />
+              </span>
+              <div>
+                <span>Permanent action</span>
+                <h3>Confirm User Deletion</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isDeleting && setUserToDelete(null)}
+                disabled={isDeleting}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="delete-modal-content">
+              <p>
+                Are you sure you want to permanently delete{" "}
+                <strong>{userToDelete.name}</strong> (<code>{userToDelete.email}</code>)?
+              </p>
+              <div className="delete-warning-box">
+                <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                <span>
+                  This will permanently remove the user account and revoke all system access.
+                  This action cannot be undone.
+                </span>
+              </div>
+            </div>
+
+            {deleteError ? (
+              <div className="form-error" style={{ marginBottom: 16 }}>
+                <CircleAlert size={14} />
+                {deleteError}
+              </div>
+            ) : null}
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setUserToDelete(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button button-danger"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                {isDeleting ? "Deleting user..." : "Yes, Delete User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function AuditPanel({ payload }: { payload: DashboardPayload }) {

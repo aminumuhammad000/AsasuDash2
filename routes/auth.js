@@ -161,6 +161,17 @@ router.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
+    const portal = req.body.portal || (req.path.includes('admin') ? 'admin' : (req.path.includes('user') ? 'user' : null));
+    const userRole = String(user.role || '').toLowerCase();
+    const isAdminRole = userRole === 'admin' || userRole === 'super_admin';
+
+    if (portal === 'admin' && !isAdminRole) {
+      return res.status(403).json({ error: 'Access denied. This account does not have administrative privileges. Please use the Partner sign in.' });
+    }
+    if (portal === 'user' && isAdminRole) {
+      return res.status(403).json({ error: 'This account has administrative privileges. Please use the Admin Portal sign in.' });
+    }
+
     // Normalize role to the frontend expected format (uppercase role strings)
     const mapRole = (r) => {
       if (!r) return 'PARTNER';

@@ -10,7 +10,7 @@ interface SessionState {
   hydrated: boolean;
   expiredNotification?: string;
   restore: () => void;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, portal?: "admin" | "user") => Promise<void>;
   register: (name: string, email: string, password: string, agency: string, branch: string, role: "AGENT" | "SUB_DEVELOPER") => Promise<void>;
   logout: (expiredReason?: string) => void;
   clearExpiredNotification: () => void;
@@ -28,8 +28,8 @@ export const useSession = create<SessionState>((set) => ({
     const user = JSON.parse(raw) as AuthUser;
     set({ user, token: user.token, hydrated: true });
   },
-  login: async (email, password) => {
-    const user = await apiLogin(email, password);
+  login: async (email, password, portal) => {
+    const user = await apiLogin(email, password, portal);
     localStorage.setItem(storageKey, JSON.stringify(user));
     set({ user, token: user.token, hydrated: true, expiredNotification: undefined });
   },
