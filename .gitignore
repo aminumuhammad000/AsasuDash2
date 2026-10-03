@@ -6,4 +6,5 @@ uploads/
 .env.local
 mongodb-data/
 *.mp4
+aaa.png
 

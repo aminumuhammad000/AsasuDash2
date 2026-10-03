@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Area,
   AreaChart,
@@ -127,6 +128,11 @@ function shortCurrency(value = 0) {
 
 function BrandMark({ inverse = false }: { inverse?: boolean }) {
   return <span className={`brand-mark ${inverse ? "brand-mark-inverse" : ""}`}><img src="/asasu-realty-official-logo.jpeg" alt="" /></span>;
+}
+
+function ModalPortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
 }
 
 function normalizeHeader(value: string | null | undefined) {
@@ -1669,17 +1675,19 @@ function DisputeModal({ entry, token, onClose, onDone }: { entry: PaymentSchedul
     }
   }
   return (
-    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <form className="modal-card dispute-modal" onSubmit={submit}>
-        <div className="modal-heading"><span className="modal-icon red"><Gavel size={19} /></span><div><span>Ownership review</span><h3>File a client dispute</h3></div><button type="button" onClick={onClose}><X size={18} /></button></div>
-        <div className="disputed-client"><span>{entry.clientName.charAt(0)}</span><div><strong>{entry.clientName}</strong><small>{entry.applicationNumber ?? entry.accountNo} · {currency(entry.rsaAmount)}</small></div></div>
-        <label className="field-label"><span>Why does this client belong to you?</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the client relationship and referral history…" minLength={10} required /></label>
-        <label className="field-label"><span>Supporting note <em>Optional</em></span><textarea value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder="Add dates, phone numbers, or other evidence operations can verify." /></label>
-        <label className="evidence-upload"><UploadCloud size={20} /><div><strong>{evidenceFile?.name || "Attach screenshot or evidence"}</strong><small>PNG, JPG, WEBP or PDF · up to 10 MB</small></div><input type="file" accept="image/png,image/jpeg,image/webp,.pdf" onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)} /></label>
-        {error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}
-        <div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancel</button><button className="button button-primary" disabled={loading || reason.length < 10}>{loading ? <Loader2 className="spin" size={16} /> : <Gavel size={16} />} Submit dispute</button></div>
-      </form>
-    </div>
+    <ModalPortal>
+      <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <form className="modal-card dispute-modal" onSubmit={submit}>
+          <div className="modal-heading"><span className="modal-icon red"><Gavel size={19} /></span><div><span>Ownership review</span><h3>File a client dispute</h3></div><button type="button" onClick={onClose}><X size={18} /></button></div>
+          <div className="disputed-client"><span>{entry.clientName.charAt(0)}</span><div><strong>{entry.clientName}</strong><small>{entry.applicationNumber ?? entry.accountNo} · {currency(entry.rsaAmount)}</small></div></div>
+          <label className="field-label"><span>Why does this client belong to you?</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the client relationship and referral history…" minLength={10} required /></label>
+          <label className="field-label"><span>Supporting note <em>Optional</em></span><textarea value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder="Add dates, phone numbers, or other evidence operations can verify." /></label>
+          <label className="evidence-upload"><UploadCloud size={20} /><div><strong>{evidenceFile?.name || "Attach screenshot or evidence"}</strong><small>PNG, JPG, WEBP or PDF · up to 10 MB</small></div><input type="file" accept="image/png,image/jpeg,image/webp,.pdf" onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)} /></label>
+          {error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}
+          <div className="modal-actions"><button type="button" className="button button-secondary" onClick={onClose}>Cancel</button><button className="button button-primary" disabled={loading || reason.length < 10}>{loading ? <Loader2 className="spin" size={16} /> : <Gavel size={16} />} Submit dispute</button></div>
+        </form>
+      </div>
+    </ModalPortal>
   );
 }
 
@@ -1734,43 +1742,45 @@ function ClaimsPanel({ payload, token, refresh }: { payload: DashboardPayload; t
       </section>
 
       {selectedClaim ? (
-        <div className="modal-backdrop drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelectedClaim(null)}>
-          <aside className="claim-drawer">
-            <div className="drawer-heading"><div><span>{selectedClaim.reference}</span><h3>{selectedClaim.submitterName}</h3><p>{selectedClaim.scheduleTitle}</p></div><button onClick={() => setSelectedClaim(null)}><X size={19} /></button></div>
-            <div className="drawer-status"><StatusBadge value={selectedClaim.status} /><span>{dateTime(selectedClaim.createdAt)}</span></div>
-            <div className="claim-total-card"><div><span>Total commission</span><strong>{currency(selectedClaim.totalPayable)}</strong></div><div><small>{selectedClaim.items.length} client{selectedClaim.items.length === 1 ? "" : "s"}</small><small>{selectedClaim.commissionRate * 100}% rate</small><small>{shortCurrency(selectedClaim.totalRsaAmount)} RSA</small></div></div>
-            <div className="drawer-section"><div className="drawer-section-heading"><h4>Claimed clients</h4>{staff && selectedClaim.items.length > 1 ? <small>Select rows for partial approval</small> : null}</div><div className="drawer-items">{selectedClaim.items.map((item) => <label className={item.status === "REJECTED" ? "rejected" : ""} key={item.id}>{staff ? <input type="checkbox" checked={approvedItems.has(item.id)} onChange={() => setApprovedItems((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} /> : null}<span>{item.clientName?.charAt(0) ?? "?"}</span><div><strong>{item.clientName}</strong><small>{item.applicationNumber} · {currency(item.rsaAmount)}</small></div><em>{currency(item.commissionAmount)}</em></label>)}</div></div>
-            {selectedClaim.notes ? (
-              <div className="drawer-section">
-                <div className="drawer-section-heading">
-                  <h4>Partner note</h4>
-                  <small>Submitted with claim</small>
-                </div>
-                <div style={{ padding: "12px 14px", background: "var(--panel-muted, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border)", fontSize: "13px", lineHeight: "1.5", color: "var(--text)" }}>
-                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{selectedClaim.notes}</p>
-                </div>
-              </div>
-            ) : null}
-            <div className="drawer-section payout-review-section">
-              <div className="drawer-section-heading">
-                <h4>Settlement account details</h4>
-                <small>{staff ? "Account on record" : "Payout destination"}</small>
-              </div>
-              {selectedPaymentAccount ? (
-                <PaymentAccountSummary account={selectedPaymentAccount} phone={selectedPhone} />
-              ) : (
-                <div className="payment-account-missing">
-                  <CircleAlert size={16} />
-                  <div>
-                    <strong>Payment details incomplete</strong>
-                    <p>{staff ? "Partner has not configured complete banking details." : "Add your bank account and phone number in Payment history."}</p>
+        <ModalPortal>
+          <div className="modal-backdrop drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelectedClaim(null)}>
+            <aside className="claim-drawer">
+              <div className="drawer-heading"><div><span>{selectedClaim.reference}</span><h3>{selectedClaim.submitterName}</h3><p>{selectedClaim.scheduleTitle}</p></div><button onClick={() => setSelectedClaim(null)}><X size={19} /></button></div>
+              <div className="drawer-status"><StatusBadge value={selectedClaim.status} /><span>{dateTime(selectedClaim.createdAt)}</span></div>
+              <div className="claim-total-card"><div><span>Total commission</span><strong>{currency(selectedClaim.totalPayable)}</strong></div><div><small>{selectedClaim.items.length} client{selectedClaim.items.length === 1 ? "" : "s"}</small><small>{selectedClaim.commissionRate * 100}% rate</small><small>{shortCurrency(selectedClaim.totalRsaAmount)} RSA</small></div></div>
+              <div className="drawer-section"><div className="drawer-section-heading"><h4>Claimed clients</h4>{staff && selectedClaim.items.length > 1 ? <small>Select rows for partial approval</small> : null}</div><div className="drawer-items">{selectedClaim.items.map((item) => <label className={item.status === "REJECTED" ? "rejected" : ""} key={item.id}>{staff ? <input type="checkbox" checked={approvedItems.has(item.id)} onChange={() => setApprovedItems((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} /> : null}<span>{item.clientName?.charAt(0) ?? "?"}</span><div><strong>{item.clientName}</strong><small>{item.applicationNumber} · {currency(item.rsaAmount)}</small></div><em>{currency(item.commissionAmount)}</em></label>)}</div></div>
+              {selectedClaim.notes ? (
+                <div className="drawer-section">
+                  <div className="drawer-section-heading">
+                    <h4>Partner note</h4>
+                    <small>Submitted with claim</small>
+                  </div>
+                  <div style={{ padding: "12px 14px", background: "var(--panel-muted, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border)", fontSize: "13px", lineHeight: "1.5", color: "var(--text)" }}>
+                    <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{selectedClaim.notes}</p>
                   </div>
                 </div>
-              )}
-            </div>
-            {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount} title={selectedPaymentAccount ? "Mark this claim as paid" : "The partner must add a payment account first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
-          </aside>
-        </div>
+              ) : null}
+              <div className="drawer-section payout-review-section">
+                <div className="drawer-section-heading">
+                  <h4>Settlement account details</h4>
+                  <small>{staff ? "Account on record" : "Payout destination"}</small>
+                </div>
+                {selectedPaymentAccount ? (
+                  <PaymentAccountSummary account={selectedPaymentAccount} phone={selectedPhone} />
+                ) : (
+                  <div className="payment-account-missing">
+                    <CircleAlert size={16} />
+                    <div>
+                      <strong>Payment details incomplete</strong>
+                      <p>{staff ? "Partner has not configured complete banking details." : "Add your bank account and phone number in Payment history."}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount} title={selectedPaymentAccount ? "Mark this claim as paid" : "The partner must add a payment account first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
+            </aside>
+          </div>
+        </ModalPortal>
       ) : null}
     </div>
   );
@@ -1892,8 +1902,9 @@ function ScheduleDetailModal({
   }, [filteredEntries, page, pageSize]);
 
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal-card schedule-viewer-modal">
+    <ModalPortal>
+      <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="modal-card schedule-viewer-modal">
         {/* Header */}
         <div className="schedule-viewer-header">
           <div className="schedule-viewer-title-group">
@@ -2118,6 +2129,7 @@ function ScheduleDetailModal({
         )}
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -2402,7 +2414,7 @@ function DisputesPanel({ payload, token, refresh }: { payload: DashboardPayload;
     <div className="page-stack">
       <section className="page-heading-row"><div><span className="eyebrow">Ownership control</span><h2>{staff ? "Resolve client ownership with a complete trail." : "A fair process when ownership is unclear."}</h2><p>{staff ? "Review evidence, notify both parties, and transfer the schedule lock when required." : "File from the claimed client row and follow every decision here."}</p></div><div className="dispute-stat"><Gavel size={18} /><span>Open cases<strong>{disputes.filter((item) => ["OPEN", "UNDER_REVIEW"].includes(item.status)).length}</strong></span></div></section>
       <section className="panel table-panel"><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Dispute</th><th>Client</th>{staff ? <><th>Raised by</th><th>Against</th></> : null}<th>Reason</th><th>Status</th><th>Created</th><th /></tr></thead><tbody>{disputes.map((dispute) => <tr key={dispute.id}><td><strong>{dispute.reference}</strong><small>{dispute.evidenceFileName ? "Evidence attached" : "Text evidence"}</small></td><td><strong>{dispute.clientName}</strong></td>{staff ? <><td>{dispute.raisedByName}</td><td>{dispute.againstUserName}</td></> : null}<td><span className="truncate-copy">{dispute.reason}</span></td><td><StatusBadge value={dispute.status} /></td><td>{dateTime(dispute.createdAt)}</td><td><button className="table-action" onClick={() => { setSelected(dispute); setNote(dispute.resolution ?? ""); }}>Open <ArrowRight size={13} /></button></td></tr>)}</tbody></table>{!disputes.length ? <EmptyState icon={Gavel} title="No disputes" copy={staff ? "New ownership cases will appear here immediately." : "You have no active ownership disputes."} /> : null}</div></section>
-      {selected ? <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><div className="modal-card case-modal"><div className="modal-heading"><span className="modal-icon violet"><Gavel size={19} /></span><div><span>{selected.reference}</span><h3>{selected.clientName}</h3></div><button onClick={() => setSelected(null)}><X size={18} /></button></div><div className="case-parties"><div><small>Raised by</small><strong>{selected.raisedByName}</strong></div><ArrowRight size={16} /><div><small>Current claimant</small><strong>{selected.againstUserName}</strong></div></div><div className="case-reason"><span>Claimant statement</span><p>{selected.reason}</p>{selected.evidenceNote ? <><span>Evidence note</span><p>{selected.evidenceNote}</p></> : null}</div>{staff ? <><label className="field-label"><span>Resolution note</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain the decision for both parties…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="modal-actions wrap"><button className="button button-secondary" onClick={() => action("review")} disabled={Boolean(loading)}>Under review</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(loading)}>Reject dispute</button><button className="button button-primary" onClick={() => action("transfer")} disabled={Boolean(loading)}>{loading === "transfer" ? <Loader2 className="spin" size={15} /> : <ArrowRight size={15} />} Transfer claim</button></div></> : <div className="case-resolution"><StatusBadge value={selected.status} />{selected.resolution ? <p>{selected.resolution}</p> : <p>Operations will notify both parties when a decision is made.</p>}</div>}</div></div> : null}
+      {selected ? <ModalPortal><div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><div className="modal-card case-modal"><div className="modal-heading"><span className="modal-icon violet"><Gavel size={19} /></span><div><span>{selected.reference}</span><h3>{selected.clientName}</h3></div><button onClick={() => setSelected(null)}><X size={18} /></button></div><div className="case-parties"><div><small>Raised by</small><strong>{selected.raisedByName}</strong></div><ArrowRight size={16} /><div><small>Current claimant</small><strong>{selected.againstUserName}</strong></div></div><div className="case-reason"><span>Claimant statement</span><p>{selected.reason}</p>{selected.evidenceNote ? <><span>Evidence note</span><p>{selected.evidenceNote}</p></> : null}</div>{staff ? <><label className="field-label"><span>Resolution note</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain the decision for both parties…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="modal-actions wrap"><button className="button button-secondary" onClick={() => action("review")} disabled={Boolean(loading)}>Under review</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(loading)}>Reject dispute</button><button className="button button-primary" onClick={() => action("transfer")} disabled={Boolean(loading)}>{loading === "transfer" ? <Loader2 className="spin" size={15} /> : <ArrowRight size={15} />} Transfer claim</button></div></> : <div className="case-resolution"><StatusBadge value={selected.status} />{selected.resolution ? <p>{selected.resolution}</p> : <p>Operations will notify both parties when a decision is made.</p>}</div>}</div></div></ModalPortal> : null}
     </div>
   );
 }
@@ -2484,7 +2496,7 @@ function SupportPanel({ payload, token, refresh }: { payload: DashboardPayload; 
         <section className="panel support-queue"><PanelHeading eyebrow={staff ? "Service desk" : "Your requests"} title={staff ? "Ticket queue" : "Ticket history"} aside={<span className="soft-chip">{tickets.length} ticket{tickets.length === 1 ? "" : "s"}</span>} /><div className="ticket-list">{tickets.map((ticket) => <article className="ticket-card" key={ticket.id}><span className="ticket-symbol"><MessageSquare size={16} /></span><div className="ticket-card-copy"><div><strong>{ticket.subject}</strong><span className={`priority-badge priority-${ticket.priority.toLowerCase()}`}>{titleCase(ticket.priority)}</span></div><p>{ticket.description}</p><small>{staff ? `${ticket.submitterName} · ` : ""}{dateTime(ticket.updatedAt)} · {ticket.replies.length} repl{ticket.replies.length === 1 ? "y" : "ies"}</small></div><div className="ticket-card-action"><StatusBadge value={ticket.status} /><button className="table-action" onClick={() => openTicket(ticket)}>Open <ArrowRight size={13} /></button></div></article>)}{!tickets.length ? <EmptyState icon={LifeBuoy} title="No support tickets" copy={staff ? "New partner requests will appear here." : "Raise your first ticket when you need help."} /> : null}</div></section>
       </section>
 
-      {selected ? <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><div className="modal-card ticket-modal"><div className="modal-heading"><span className="modal-icon violet"><LifeBuoy size={19} /></span><div><span>{titleCase(selected.priority)} priority · {selected.submitterName}</span><h3>{selected.subject}</h3></div><button onClick={() => setSelected(null)}><X size={18} /></button></div><div className="ticket-conversation"><div className="ticket-message ticket-message-origin"><div><strong>{selected.submitterName}</strong><small>{dateTime(selected.createdAt)}</small></div><p>{selected.description}</p></div>{selected.replies.map((item) => <div className={`ticket-message ${item.authorId === payload.user.id ? "ticket-message-mine" : ""}`} key={item.id}><div><strong>{item.authorName}</strong><small>{dateTime(item.createdAt)}</small></div><p>{item.body}</p></div>)}</div><form className="ticket-reply" onSubmit={sendReply}>{staff ? <label className="field-label"><span>Set status</span><select value={replyStatus} onChange={(event) => setReplyStatus(event.target.value as TicketStatus)}>{(["OPEN", "WAITING", "RESOLVED"] as TicketStatus[]).map((item) => <option key={item} value={item}>{titleCase(item)}</option>)}</select></label> : null}<label className="field-label"><span>{staff ? "Reply to partner" : "Add a reply"}</span><textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a clear update…" minLength={2} maxLength={2000} required /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setSelected(null)}>Close</button><button className="button button-primary" disabled={loading || reply.trim().length < 2}>{loading ? <Loader2 className="spin" size={15} /> : <Send size={15} />} Send reply</button></div></form></div></div> : null}
+      {selected ? <ModalPortal><div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSelected(null)}><div className="modal-card ticket-modal"><div className="modal-heading"><span className="modal-icon violet"><LifeBuoy size={19} /></span><div><span>{titleCase(selected.priority)} priority · {selected.submitterName}</span><h3>{selected.subject}</h3></div><button onClick={() => setSelected(null)}><X size={18} /></button></div><div className="ticket-conversation"><div className="ticket-message ticket-message-origin"><div><strong>{selected.submitterName}</strong><small>{dateTime(selected.createdAt)}</small></div><p>{selected.description}</p></div>{selected.replies.map((item) => <div className={`ticket-message ${item.authorId === payload.user.id ? "ticket-message-mine" : ""}`} key={item.id}><div><strong>{item.authorName}</strong><small>{dateTime(item.createdAt)}</small></div><p>{item.body}</p></div>)}</div><form className="ticket-reply" onSubmit={sendReply}>{staff ? <label className="field-label"><span>Set status</span><select value={replyStatus} onChange={(event) => setReplyStatus(event.target.value as TicketStatus)}>{(["OPEN", "WAITING", "RESOLVED"] as TicketStatus[]).map((item) => <option key={item} value={item}>{titleCase(item)}</option>)}</select></label> : null}<label className="field-label"><span>{staff ? "Reply to partner" : "Add a reply"}</span><textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a clear update…" minLength={2} maxLength={2000} required /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setSelected(null)}>Close</button><button className="button button-primary" disabled={loading || reply.trim().length < 2}>{loading ? <Loader2 className="spin" size={15} /> : <Send size={15} />} Send reply</button></div></form></div></div></ModalPortal> : null}
     </div>
   );
 }
@@ -2765,244 +2777,248 @@ function PeoplePanel({
       </section>
 
       {userToDelete ? (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !isDeleting) {
-              setUserToDelete(null);
-            }
-          }}
-        >
-          <div className="modal-card user-delete-modal">
-            <div className="modal-heading">
-              <span className="modal-icon red">
-                <Trash2 size={19} />
-              </span>
-              <div>
-                <span>Permanent action</span>
-                <h3>Confirm User Deletion</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => !isDeleting && setUserToDelete(null)}
-                disabled={isDeleting}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="delete-modal-content">
-              <p>
-                Are you sure you want to permanently delete{" "}
-                <strong>{userToDelete.name}</strong> (<code>{userToDelete.email}</code>)?
-              </p>
-              <div className="delete-warning-box">
-                <AlertTriangle size={18} style={{ flexShrink: 0 }} />
-                <span>
-                  This will permanently remove the user account and revoke all system access.
-                  This action cannot be undone.
+        <ModalPortal>
+          <div
+            className="modal-backdrop"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !isDeleting) {
+                setUserToDelete(null);
+              }
+            }}
+          >
+            <div className="modal-card user-delete-modal">
+              <div className="modal-heading">
+                <span className="modal-icon red">
+                  <Trash2 size={19} />
                 </span>
-              </div>
-            </div>
-
-            {deleteError ? (
-              <div className="form-error" style={{ marginBottom: 16 }}>
-                <CircleAlert size={14} />
-                {deleteError}
-              </div>
-            ) : null}
-
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => setUserToDelete(null)}
-                disabled={isDeleting}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="button button-danger"
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting}
-              >
-                {isDeleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
-                {isDeleting ? "Deleting user..." : "Yes, Delete User"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showCreateModal ? (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !isCreating) {
-              setShowCreateModal(false);
-            }
-          }}
-        >
-          <div className="modal-card" style={{ maxWidth: "520px" }}>
-            <div className="modal-heading">
-              <span className="modal-icon blue">
-                <UserRoundPlus size={20} />
-              </span>
-              <div>
-                <span>Identity & access</span>
-                <h3>Create User or Admin</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => !isCreating && setShowCreateModal(false)}
-                disabled={isCreating}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} className="modal-form-grid">
-              <div className="modal-row-2">
-                <label className="field-label">
-                  <span>Full Name *</span>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ibrahim Abubakar"
-                    value={createName}
-                    onChange={(e) => setCreateName(e.target.value)}
-                    disabled={isCreating}
-                  />
-                </label>
-
-                <label className="field-label">
-                  <span>Email Address *</span>
-                  <input
-                    type="email"
-                    required
-                    placeholder="user@asasurealty.com"
-                    value={createEmail}
-                    onChange={(e) => setCreateEmail(e.target.value)}
-                    disabled={isCreating}
-                  />
-                </label>
-              </div>
-
-              <div className="modal-row-2">
-                <label className="field-label">
-                  <span>Role *</span>
-                  <select
-                    value={createRole}
-                    onChange={(e) => setCreateRole(e.target.value as Role)}
-                    disabled={isCreating}
-                  >
-                    <option value="ADMIN">Administrator (ADMIN)</option>
-                    <option value="SUPER_ADMIN">Super Administrator (SUPER_ADMIN)</option>
-                    <option value="OPERATIONS">Operations Manager (OPERATIONS)</option>
-                    <option value="FINANCE">Finance Officer (FINANCE)</option>
-                    <option value="BRANCH_ADMIN">Branch Admin (BRANCH_ADMIN)</option>
-                    <option value="SUPPORT">Support Officer (SUPPORT)</option>
-                    <option value="AUDITOR">Auditor (AUDITOR)</option>
-                    <option value="AGENT">Partner / Agent (AGENT)</option>
-                    <option value="SUB_DEVELOPER">Sub-Developer (SUB_DEVELOPER)</option>
-                  </select>
-                </label>
-
-                <label className="field-label">
-                  <span>Branch / Location</span>
-                  <input
-                    type="text"
-                    placeholder="e.g. Kano, Abuja"
-                    value={createBranch}
-                    onChange={(e) => setCreateBranch(e.target.value)}
-                    disabled={isCreating}
-                  />
-                </label>
-              </div>
-
-              <div className="modal-row-2">
-                <label className="field-label">
-                  <span>Agency / Department</span>
-                  <input
-                    type="text"
-                    placeholder={staffRoles.has(createRole) ? "ASASU Realty" : "Direct Partner"}
-                    value={createAgency}
-                    onChange={(e) => setCreateAgency(e.target.value)}
-                    disabled={isCreating}
-                  />
-                </label>
-
-                <label className="field-label">
-                  <span>Phone Number</span>
-                  <input
-                    type="tel"
-                    placeholder="08012345678"
-                    value={createPhone}
-                    onChange={(e) => setCreatePhone(e.target.value)}
-                    disabled={isCreating}
-                  />
-                </label>
-              </div>
-
-              <label className="field-label">
-                <span>Initial Password * (min. 6 characters)</span>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <input
-                    type="text"
-                    required
-                    minLength={6}
-                    placeholder="Enter password"
-                    value={createPassword}
-                    onChange={(e) => setCreatePassword(e.target.value)}
-                    disabled={isCreating}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    style={{ whiteSpace: "nowrap" }}
-                    disabled={isCreating}
-                    onClick={() => {
-                      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
-                      let pass = "";
-                      for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
-                      setCreatePassword(pass);
-                    }}
-                  >
-                    Generate
-                  </button>
+                <div>
+                  <span>Permanent action</span>
+                  <h3>Confirm User Deletion</h3>
                 </div>
-              </label>
+                <button
+                  type="button"
+                  onClick={() => !isDeleting && setUserToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  <X size={18} />
+                </button>
+              </div>
 
-              {createError ? (
-                <div className="form-error">
+              <div className="delete-modal-content">
+                <p>
+                  Are you sure you want to permanently delete{" "}
+                  <strong>{userToDelete.name}</strong> (<code>{userToDelete.email}</code>)?
+                </p>
+                <div className="delete-warning-box">
+                  <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                  <span>
+                    This will permanently remove the user account and revoke all system access.
+                    This action cannot be undone.
+                  </span>
+                </div>
+              </div>
+
+              {deleteError ? (
+                <div className="form-error" style={{ marginBottom: 16 }}>
                   <CircleAlert size={14} />
-                  <span>{createError}</span>
+                  {deleteError}
                 </div>
               ) : null}
 
-              <div className="modal-actions" style={{ marginTop: "8px" }}>
+              <div className="modal-actions">
                 <button
                   type="button"
                   className="button button-secondary"
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={isCreating}
+                  onClick={() => setUserToDelete(null)}
+                  disabled={isDeleting}
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  className="button button-primary"
-                  disabled={isCreating}
+                  type="button"
+                  className="button button-danger"
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
                 >
-                  {isCreating ? <Loader2 className="spin" size={15} /> : <UserRoundPlus size={15} />}
-                  <span>{isCreating ? "Creating..." : "Create Account"}</span>
+                  {isDeleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />}
+                  {isDeleting ? "Deleting user..." : "Yes, Delete User"}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
+      ) : null}
+
+      {showCreateModal ? (
+        <ModalPortal>
+          <div
+            className="modal-backdrop"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !isCreating) {
+                setShowCreateModal(false);
+              }
+            }}
+          >
+            <div className="modal-card" style={{ maxWidth: "520px" }}>
+              <div className="modal-heading">
+                <span className="modal-icon blue">
+                  <UserRoundPlus size={20} />
+                </span>
+                <div>
+                  <span>Identity & access</span>
+                  <h3>Create User or Admin</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !isCreating && setShowCreateModal(false)}
+                  disabled={isCreating}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateUser} className="modal-form-grid">
+                <div className="modal-row-2">
+                  <label className="field-label">
+                    <span>Full Name *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ibrahim Abubakar"
+                      value={createName}
+                      onChange={(e) => setCreateName(e.target.value)}
+                      disabled={isCreating}
+                    />
+                  </label>
+
+                  <label className="field-label">
+                    <span>Email Address *</span>
+                    <input
+                      type="email"
+                      required
+                      placeholder="user@asasurealty.com"
+                      value={createEmail}
+                      onChange={(e) => setCreateEmail(e.target.value)}
+                      disabled={isCreating}
+                    />
+                  </label>
+                </div>
+
+                <div className="modal-row-2">
+                  <label className="field-label">
+                    <span>Role *</span>
+                    <select
+                      value={createRole}
+                      onChange={(e) => setCreateRole(e.target.value as Role)}
+                      disabled={isCreating}
+                    >
+                      <option value="ADMIN">Administrator (ADMIN)</option>
+                      <option value="SUPER_ADMIN">Super Administrator (SUPER_ADMIN)</option>
+                      <option value="OPERATIONS">Operations Manager (OPERATIONS)</option>
+                      <option value="FINANCE">Finance Officer (FINANCE)</option>
+                      <option value="BRANCH_ADMIN">Branch Admin (BRANCH_ADMIN)</option>
+                      <option value="SUPPORT">Support Officer (SUPPORT)</option>
+                      <option value="AUDITOR">Auditor (AUDITOR)</option>
+                      <option value="AGENT">Partner / Agent (AGENT)</option>
+                      <option value="SUB_DEVELOPER">Sub-Developer (SUB_DEVELOPER)</option>
+                    </select>
+                  </label>
+
+                  <label className="field-label">
+                    <span>Branch / Location</span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Kano, Abuja"
+                      value={createBranch}
+                      onChange={(e) => setCreateBranch(e.target.value)}
+                      disabled={isCreating}
+                    />
+                  </label>
+                </div>
+
+                <div className="modal-row-2">
+                  <label className="field-label">
+                    <span>Agency / Department</span>
+                    <input
+                      type="text"
+                      placeholder={staffRoles.has(createRole) ? "ASASU Realty" : "Direct Partner"}
+                      value={createAgency}
+                      onChange={(e) => setCreateAgency(e.target.value)}
+                      disabled={isCreating}
+                    />
+                  </label>
+
+                  <label className="field-label">
+                    <span>Phone Number</span>
+                    <input
+                      type="tel"
+                      placeholder="08012345678"
+                      value={createPhone}
+                      onChange={(e) => setCreatePhone(e.target.value)}
+                      disabled={isCreating}
+                    />
+                  </label>
+                </div>
+
+                <label className="field-label">
+                  <span>Initial Password * (min. 6 characters)</span>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="text"
+                      required
+                      minLength={6}
+                      placeholder="Enter password"
+                      value={createPassword}
+                      onChange={(e) => setCreatePassword(e.target.value)}
+                      disabled={isCreating}
+                      style={{ flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      style={{ whiteSpace: "nowrap" }}
+                      disabled={isCreating}
+                      onClick={() => {
+                        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+                        let pass = "";
+                        for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setCreatePassword(pass);
+                      }}
+                    >
+                      Generate
+                    </button>
+                  </div>
+                </label>
+
+                {createError ? (
+                  <div className="form-error">
+                    <CircleAlert size={14} />
+                    <span>{createError}</span>
+                  </div>
+                ) : null}
+
+                <div className="modal-actions" style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    onClick={() => setShowCreateModal(false)}
+                    disabled={isCreating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="button button-primary"
+                    disabled={isCreating}
+                  >
+                    {isCreating ? <Loader2 className="spin" size={15} /> : <UserRoundPlus size={15} />}
+                    <span>{isCreating ? "Creating..." : "Create Account"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalPortal>
       ) : null}
     </div>
   );
