@@ -1171,12 +1171,23 @@ body.modal-open { overflow: hidden !important; }
 
 .metric-card.clickable {
   cursor: pointer;
-  transition: transform .15s ease, border-color .15s ease;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
 
 .metric-card.clickable:hover {
   transform: translateY(-2px);
   border-color: var(--primary);
+}
+
+.metric-card.active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--panel));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.metric-card.clickable:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .recent-schedules-grid {

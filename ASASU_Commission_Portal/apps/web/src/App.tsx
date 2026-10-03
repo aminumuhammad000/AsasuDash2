@@ -1293,9 +1293,40 @@ function AdminOverview({ payload, token, refresh, navigate }: { payload: Dashboa
   );
 }
 
-function MetricCard({ label, value, icon: Icon, tone, trend, onClick }: { label: string; value: string; icon: typeof WalletCards; tone: string; trend: string; onClick?: () => void }) {
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  trend,
+  onClick,
+  active
+}: {
+  label: string;
+  value: string;
+  icon: typeof WalletCards;
+  tone: string;
+  trend: string;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
-    <article className={`metric-card ${onClick ? "clickable" : ""}`} onClick={onClick}>
+    <article
+      className={`metric-card ${onClick ? "clickable" : ""} ${active ? "active" : ""}`}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className={`metric-icon ${tone}`}><Icon size={18} /></div>
       <span>{label}</span>
       <strong>{value}</strong>
@@ -2554,6 +2585,33 @@ function PeoplePanel({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "ACTIVE" | "AGENT" | "SUB_DEVELOPER" | "STAFF">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      if (roleFilter === "ACTIVE" && !user.active) return false;
+      if (roleFilter === "AGENT" && user.role !== "AGENT") return false;
+      if (roleFilter === "SUB_DEVELOPER" && user.role !== "SUB_DEVELOPER") return false;
+      if (roleFilter === "STAFF" && !isStaff(user)) return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesName = user.name?.toLowerCase().includes(q);
+        const matchesEmail = user.email?.toLowerCase().includes(q);
+        const matchesAgency = user.agency?.toLowerCase().includes(q);
+        const matchesBranch = user.branch?.toLowerCase().includes(q);
+        const matchesPhone = user.phone?.toLowerCase().includes(q);
+        const matchesRole = user.role?.toLowerCase().replace(/_/g, " ").includes(q);
+        if (!matchesName && !matchesEmail && !matchesAgency && !matchesBranch && !matchesPhone && !matchesRole) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [users, roleFilter, searchQuery]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createEmail, setCreateEmail] = useState("");
@@ -2673,32 +2731,77 @@ function PeoplePanel({
           value={number(users.filter((user) => user.active).length)}
           icon={Users}
           tone="green"
-          trend="Can access workspace"
+          trend={roleFilter === "ACTIVE" ? "✓ Filter active (click to reset)" : "Can access workspace"}
+          onClick={() => setRoleFilter((prev) => (prev === "ACTIVE" ? "ALL" : "ACTIVE"))}
+          active={roleFilter === "ACTIVE"}
         />
         <MetricCard
           label="Agents"
           value={number(users.filter((user) => user.role === "AGENT").length)}
           icon={UserRound}
           tone="violet"
-          trend="Standard 1% tier"
+          trend={roleFilter === "AGENT" ? "✓ Filter active (click to reset)" : "Standard 1% tier"}
+          onClick={() => setRoleFilter((prev) => (prev === "AGENT" ? "ALL" : "AGENT"))}
+          active={roleFilter === "AGENT"}
         />
         <MetricCard
           label="Sub-developers"
           value={number(users.filter((user) => user.role === "SUB_DEVELOPER").length)}
           icon={Building2}
           tone="blue"
-          trend="1.5% or 2% tier"
+          trend={roleFilter === "SUB_DEVELOPER" ? "✓ Filter active (click to reset)" : "1.5% or 2% tier"}
+          onClick={() => setRoleFilter((prev) => (prev === "SUB_DEVELOPER" ? "ALL" : "SUB_DEVELOPER"))}
+          active={roleFilter === "SUB_DEVELOPER"}
         />
         <MetricCard
           label="Staff"
           value={number(users.filter(isStaff).length)}
           icon={ShieldCheck}
           tone="amber"
-          trend="Controlled access"
+          trend={roleFilter === "STAFF" ? "✓ Filter active (click to reset)" : "Controlled access"}
+          onClick={() => setRoleFilter((prev) => (prev === "STAFF" ? "ALL" : "STAFF"))}
+          active={roleFilter === "STAFF"}
         />
       </section>
 
       <section className="panel table-panel">
+        <div className="table-topbar">
+          <label className="table-search">
+            <Search size={16} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search user by name, email, agency, phone…"
+            />
+          </label>
+          {roleFilter !== "ALL" && (
+            <button
+              type="button"
+              className="soft-chip"
+              onClick={() => setRoleFilter("ALL")}
+              style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+              title="Click to clear filter"
+            >
+              <span>
+                Filtered:{" "}
+                <strong>
+                  {roleFilter === "ACTIVE"
+                    ? "Active Users"
+                    : roleFilter === "AGENT"
+                    ? "Agents"
+                    : roleFilter === "SUB_DEVELOPER"
+                    ? "Sub-developers"
+                    : "Staff"}
+                </strong>
+              </span>
+              <X size={12} />
+            </button>
+          )}
+          <span className="result-count">
+            {filteredUsers.length} of {users.length} {users.length === 1 ? "user" : "users"}
+          </span>
+        </div>
         <div className="data-table-wrap">
           <table className="data-table">
             <thead>
@@ -2714,7 +2817,7 @@ function PeoplePanel({
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
+              {filteredUsers.map((user) => {
                 const isSelf = user.id === payload.user.id;
                 const canDelete = isAdmin && !isSelf;
                 return (
@@ -2771,6 +2874,22 @@ function PeoplePanel({
                   </tr>
                 );
               })}
+              {!filteredUsers.length ? (
+                <tr>
+                  <td colSpan={8} style={{ padding: "30px 10px" }}>
+                    <EmptyState
+                      compact
+                      icon={Users}
+                      title="No users found"
+                      copy={
+                        roleFilter !== "ALL" || searchQuery
+                          ? "No users match your selected filter or search criteria. Click to reset."
+                          : "No users registered yet."
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
