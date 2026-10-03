@@ -1414,17 +1414,22 @@
       border-left-color: var(--error);
     }
 
+    body.modal-open {
+      overflow: hidden !important;
+    }
+
     /* MODAL */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(26, 31, 60, 0.6);
-      backdrop-filter: blur(4px);
-      z-index: 200;
+      background: rgba(26, 31, 60, 0.65);
+      backdrop-filter: blur(6px);
+      z-index: 9999;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: 20px;
+      overflow: hidden;
     }
 
     .modal-overlay.open {
@@ -1437,8 +1442,12 @@
       width: 100%;
       max-width: 520px;
       max-height: 90vh;
+      margin: auto;
+      position: relative;
       overflow-y: auto;
+      overscroll-behavior: contain;
       animation: fadeUp 0.25s ease;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
     }
 
     .modal-header {

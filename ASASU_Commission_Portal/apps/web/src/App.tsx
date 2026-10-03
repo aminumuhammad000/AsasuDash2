@@ -2553,6 +2553,15 @@ function PeoplePanel({
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (showCreateModal || userToDelete) {
+      document.body.classList.add("modal-open");
+      return () => {
+        document.body.classList.remove("modal-open");
+      };
+    }
+  }, [showCreateModal, userToDelete]);
+
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault();
     if (!createName.trim() || !createEmail.trim() || !createPassword.trim()) {
@@ -2853,30 +2862,32 @@ function PeoplePanel({
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
-              <label className="field-label">
-                <span>Full Name *</span>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Ibrahim Abubakar"
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                  disabled={isCreating}
-                />
-              </label>
+            <form onSubmit={handleCreateUser} style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label className="field-label">
+                  <span>Full Name *</span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ibrahim Abubakar"
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    disabled={isCreating}
+                  />
+                </label>
 
-              <label className="field-label">
-                <span>Email Address *</span>
-                <input
-                  type="email"
-                  required
-                  placeholder="user@asasurealty.com"
-                  value={createEmail}
-                  onChange={(e) => setCreateEmail(e.target.value)}
-                  disabled={isCreating}
-                />
-              </label>
+                <label className="field-label">
+                  <span>Email Address *</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="user@asasurealty.com"
+                    value={createEmail}
+                    onChange={(e) => setCreateEmail(e.target.value)}
+                    disabled={isCreating}
+                  />
+                </label>
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <label className="field-label">
