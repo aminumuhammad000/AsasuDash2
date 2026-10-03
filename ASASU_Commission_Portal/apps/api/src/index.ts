@@ -350,7 +350,7 @@ app.post("/api/auth/forgot-password", async (request, response) => {
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const User = mongoose.models.User || mongoose.model("User");
+      const User: any = mongoose.models.User || (mongoose as any).model("User");
       mongoUser = await User.findOne({ email: emailNorm });
     }
   } catch {
@@ -427,7 +427,7 @@ app.post("/api/auth/reset-password", async (request, response) => {
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const User = mongoose.models.User || mongoose.model("User");
+      const User: any = mongoose.models.User || (mongoose as any).model("User");
       mongoUser = await User.findOne({ email: emailNorm });
     }
   } catch {
@@ -512,7 +512,7 @@ app.post("/api/auth/change-password", requireAuth, async (request, response) => 
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const User = mongoose.models.User || mongoose.model("User");
+      const User: any = mongoose.models.User || (mongoose as any).model("User");
       const mongoUser = await User.findOne({ email: user.email.toLowerCase() });
       if (mongoUser) {
         mongoUser.password = newHash;
@@ -597,7 +597,7 @@ const deleteUserHandler = async (request: Request, response: Response) => {
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const User = mongoose.models.User || mongoose.model("User");
+      const User: any = mongoose.models.User || (mongoose as any).model("User");
       if (User) {
         if (mongoose.Types.ObjectId.isValid(targetId)) {
           await User.findByIdAndDelete(targetId);
@@ -679,7 +679,7 @@ const createUserHandler = async (request: Request, response: Response) => {
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const MongoUser = mongoose.models.User || mongoose.model("User");
+      const MongoUser: any = mongoose.models.User || (mongoose as any).model("User");
       const existing = await MongoUser.findOne({ email: normalizedEmail });
       if (!existing) {
         await MongoUser.create({
@@ -827,7 +827,7 @@ async function notifyPartnersOfNewSchedule(schedule: PaymentSchedule, data: Data
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const MongoUserModel = mongoose.models.User || mongoose.model("User");
+      const MongoUserModel: any = mongoose.models.User || (mongoose as any).model("User");
       const mongoPartners = await MongoUserModel.find({
         role: { $in: ["partner", "agent", "sub_developer", "PARTNER", "AGENT", "SUB_DEVELOPER"] },
         status: { $ne: "disabled" }
@@ -1015,8 +1015,8 @@ async function notifyAdminsOfNewClaim(claim: Claim, submitter: StoredUser | User
   try {
     const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
-      const MongoUserModel = mongoose.models.User || mongoose.model("User");
-      const Setting = mongoose.models.Setting || mongoose.model("Setting");
+      const MongoUserModel: any = mongoose.models.User || (mongoose as any).model("User");
+      const Setting: any = mongoose.models.Setting || (mongoose as any).model("Setting");
       const mongoAdmins = await MongoUserModel.find({
         role: { $in: ["admin", "ADMIN", "super_admin", "SUPER_ADMIN"] }
       });
