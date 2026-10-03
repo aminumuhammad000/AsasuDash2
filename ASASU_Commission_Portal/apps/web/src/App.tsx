@@ -2862,8 +2862,8 @@ function PeoplePanel({
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} style={{ display: "grid", gap: "10px", marginTop: "12px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <form onSubmit={handleCreateUser} className="modal-form-grid">
+              <div className="modal-row-2">
                 <label className="field-label">
                   <span>Full Name *</span>
                   <input
@@ -2889,7 +2889,7 @@ function PeoplePanel({
                 </label>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="modal-row-2">
                 <label className="field-label">
                   <span>Role *</span>
                   <select
@@ -2921,7 +2921,7 @@ function PeoplePanel({
                 </label>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <div className="modal-row-2">
                 <label className="field-label">
                   <span>Agency / Department</span>
                   <input

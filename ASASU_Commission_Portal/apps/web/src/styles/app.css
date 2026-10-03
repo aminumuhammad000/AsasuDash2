@@ -492,6 +492,15 @@ body.modal-open { overflow: hidden !important; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal-actions.wrap { flex-wrap: wrap; }
 .user-delete-modal { width: min(100%, 460px); overflow-y: visible; max-height: none; }
+.modal-form-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+.modal-form-grid .field-label { margin-bottom: 0 !important; }
+.modal-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 580px) {
+  .modal-backdrop { padding: 10px; }
+  .modal-card { padding: 18px 16px; border-radius: 16px; width: 100%; max-height: calc(100vh - 20px); }
+  .modal-row-2 { grid-template-columns: 1fr; gap: 10px; }
+  .modal-heading { margin-bottom: 12px; }
+}
 .delete-modal-content { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 .delete-modal-content strong { color: var(--text); }
 .delete-modal-content code { color: var(--primary); font-size: 12px; }
