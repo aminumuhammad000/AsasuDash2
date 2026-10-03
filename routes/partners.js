@@ -109,6 +109,20 @@ router.patch('/:id/reset-password', auth, async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const partner = await User.findByIdAndUpdate(req.params.id, { password: hashedPassword });
 
+    try {
+      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      if (fs.existsSync(storePath)) {
+        const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+        const u = storeData.users?.find(item => item.id === req.params.id || (partner && item.email?.toLowerCase() === partner.email?.toLowerCase()));
+        if (u) {
+          u.passwordHash = hashedPassword;
+          fs.writeFileSync(storePath, JSON.stringify(storeData, null, 2));
+        }
+      }
+    } catch (storeErr) {
+      console.warn('Could not sync password reset to store.json:', storeErr.message);
+    }
+
     if (!partner) return res.status(404).json({ error: 'Partner not found' });
 
     res.json({ message: `Password for ${partner.name} has been reset successfully.` });

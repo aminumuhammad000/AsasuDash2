@@ -45,6 +45,10 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+const webDistDir = path.join(__dirname, 'ASASU_Commission_Portal/apps/web/dist');
+if (fs.existsSync(webDistDir)) {
+  app.use(express.static(webDistDir));
+}
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Socket.io connection
@@ -149,12 +153,12 @@ async function startServer() {
     });
 
     // Portal Routes
-    app.get('/admin', (req, res) => {
+    app.get(['/admin', '/admin-login'], (req, res) => {
+      const webDistIndex = path.join(__dirname, 'ASASU_Commission_Portal/apps/web/dist/index.html');
+      if (fs.existsSync(webDistIndex)) {
+        return res.sendFile(webDistIndex);
+      }
       res.sendFile(path.join(__dirname, 'public/admin.html'));
-    });
-
-    app.get('/admin-login', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public/admin-login.html'));
     });
 
     // Basic Route
@@ -200,6 +204,10 @@ async function startServer() {
 
     // Fallback to index.html for Partner Portal (Single Page App)
     app.use((req, res) => {
+      const webDistIndex = path.join(__dirname, 'ASASU_Commission_Portal/apps/web/dist/index.html');
+      if (fs.existsSync(webDistIndex)) {
+        return res.sendFile(webDistIndex);
+      }
       res.sendFile(path.join(__dirname, 'public/index.html'));
     });
 

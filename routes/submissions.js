@@ -27,13 +27,34 @@ router.get('/', auth, async (req, res) => {
     if (req.user.role !== 'admin') {
       query.partner = req.user.id;
     }
-    const submissions = await Submission.find(query).populate('partner', 'name').sort({ date: -1 });
+    const submissions = await Submission.find(query).populate('partner', 'name email phone paymentAccount').sort({ date: -1 });
     
-    // Ensure partnerName is populated if missing (for older records)
+    let storeUsers = [];
+    try {
+      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      if (fs.existsSync(storePath)) {
+        storeUsers = JSON.parse(fs.readFileSync(storePath, 'utf8')).users || [];
+      }
+    } catch {}
+
+    // Ensure partnerName, phone, and paymentAccount are populated
     const formattedSubmissions = submissions.map(s => {
       const obj = s.toObject();
       if (!obj.partnerName && obj.partner) {
         obj.partnerName = obj.partner.name;
+      }
+      if (!obj.phone && obj.partner && obj.partner.phone) {
+        obj.phone = obj.partner.phone;
+      }
+      if (!obj.paymentAccount && obj.partner && obj.partner.paymentAccount) {
+        obj.paymentAccount = obj.partner.paymentAccount;
+      }
+      if (!obj.paymentAccount || !obj.phone) {
+        const su = storeUsers.find(u => u.id === (obj.partner?._id || obj.partner) || u.email?.toLowerCase() === obj.email?.toLowerCase());
+        if (su) {
+          if (!obj.paymentAccount && su.paymentAccount) obj.paymentAccount = su.paymentAccount;
+          if (!obj.phone && su.phone) obj.phone = su.phone;
+        }
       }
       return obj;
     });
@@ -101,6 +122,29 @@ router.post('/', [auth, upload.single('file')], async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
+    const User = require('../models/User');
+    const partnerUser = await User.findById(req.user.id).catch(() => null);
+    let resolvedPaymentAccount = null;
+    let resolvedPhone = partnerUser?.phone || null;
+
+    if (partnerUser && partnerUser.paymentAccount && partnerUser.paymentAccount.accountNumber) {
+      resolvedPaymentAccount = partnerUser.paymentAccount;
+    } else {
+      try {
+        const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+        if (fs.existsSync(storePath)) {
+          const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+          const su = storeData.users?.find(u => u.id === req.user.id || u.email?.toLowerCase() === email?.toLowerCase());
+          if (su && su.paymentAccount) {
+            resolvedPaymentAccount = su.paymentAccount;
+          }
+          if (!resolvedPhone && su && su.phone) {
+            resolvedPhone = su.phone;
+          }
+        }
+      } catch {}
+    }
+
     const submission = new Submission({
       ref,
       partner: req.user.id,
@@ -111,25 +155,35 @@ router.post('/', [auth, upload.single('file')], async (req, res) => {
       file: fileUrl,
       fileId: fileId, // Store this in case we need to delete/replace it later
       fileSize: req.file ? (req.file.size / 1024).toFixed(1) + ' KB' : '0 KB',
-      notes
+      notes,
+      phone: resolvedPhone,
+      paymentAccount: resolvedPaymentAccount
     });
     await submission.save();
 
     // Notify admins about new claim
     try {
+      let paymentInfo = 'Not provided yet';
+      if (resolvedPaymentAccount && resolvedPaymentAccount.accountNumber) {
+        paymentInfo = `${resolvedPaymentAccount.bankName} - ${resolvedPaymentAccount.accountNumber} (${resolvedPaymentAccount.accountName})`;
+      }
+
       const { notifyAdmins } = require('../utils/notifications');
       await notifyAdmins(
         `New Claim Submitted: ${ref}`,
-        `Partner ${partnerName} has submitted a new commission claim (${ref}) with ${count} applicants.`,
+        `Partner ${partnerName} has submitted a new commission claim (${ref}) with ${count} applicants.\nPayment Account: ${paymentInfo}\nNotes: ${notes || 'None'}`,
         `<div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #1a1f3c; border-radius: 10px;">
           <h2 style="color: #1a1f3c;">New Commission Claim</h2>
-          <p>Partner <strong>${partnerName}</strong> has submitted a new claim.</p>
+          <p>Partner <strong>${partnerName}</strong> (${email}) has submitted a new claim.</p>
           <div style="background: #f7f8fc; padding: 15px; border-radius: 8px; margin: 15px 0;">
             <p><strong>Ref:</strong> ${ref}</p>
             <p><strong>Applicants:</strong> ${count}</p>
             <p><strong>Partner Code:</strong> ${partnerCode || 'N/A'}</p>
+            <p><strong>Bank Details:</strong> ${paymentInfo}</p>
+            ${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ''}
           </div>
-          <p>Please log in to the portal to review the supporting documents and approve/reject.</p>
+          <p>Please log in to the admin portal to review the supporting documents and approve/reject.</p>
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5001'}/admin" style="display:inline-block;padding:10px 20px;background:#e8b84b;color:#1a1f3c;text-decoration:none;border-radius:6px;font-weight:bold;">Review in Admin Portal</a>
         </div>`
       );
     } catch (notifErr) {

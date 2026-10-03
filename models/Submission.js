@@ -12,6 +12,12 @@ const submissionSchema = new mongoose.Schema({
   fileSize: { type: String, required: true },
   status: { type: String, enum: ['pending', 'paid', 'rejected', 'approved'], default: 'pending' },
   notes: { type: String },
+  phone: { type: String },
+  paymentAccount: {
+    bankName: { type: String },
+    accountNumber: { type: String },
+    accountName: { type: String }
+  },
   date: { type: Date, default: Date.now },
   replies: [{
     sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

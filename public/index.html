@@ -1210,10 +1210,11 @@
           <span class="password-toggle-btn" id="partnerIdToggle" onclick="togglePassword('partnerId', 'partnerIdToggle')">👁️</span>
         </div>
       </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:-6px; margin-bottom:14px;">
+        <a href="#" onclick="showForgotPassword()" style="color:var(--gold); text-decoration:none; font-size:12px; font-weight:600;">Forgot password?</a>
+      </div>
       <button class="btn-primary" onclick="loginPartner()">Access Portal →</button>
     </div>
-
-
 
     <p style="text-align:center;margin-top:20px;font-size:12px;color:rgba(255,255,255,0.4);">
       Secure portal for ASASU Realty LTD partners
@@ -1222,6 +1223,73 @@
     <p style="text-align:center;margin-top:16px;font-size:13px;color:rgba(255,255,255,0.6);">
       New Partner? <a href="#" onclick="showRegister()" style="color:var(--gold);text-decoration:none;font-weight:600">Register here</a>
     </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     FORGOT PASSWORD SCREEN
+══════════════════════════════════════════ -->
+<div id="forgotPasswordScreen" class="screen">
+  <div class="login-card">
+    <div id="forgotInitial">
+      <div class="login-logo">
+        <div class="logo-icon">🏠</div>
+        <div class="logo-text">
+          <h1>ASASU REALTY LTD</h1>
+          <span>Password Recovery</span>
+        </div>
+      </div>
+      <div class="login-title">Reset Password</div>
+      <div class="login-sub">Enter your email to receive a 6-digit verification code</div>
+
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-input" id="forgotEmail" placeholder="your@email.com">
+      </div>
+
+      <button class="btn-primary" onclick="sendForgotOTP()">Send Verification Code →</button>
+
+      <p style="text-align:center;margin-top:20px;font-size:13px;color:rgba(255,255,255,0.6);">
+        <a href="#" onclick="showLogin()" style="color:var(--gold);text-decoration:none;font-weight:600">← Back to Sign in</a>
+      </p>
+    </div>
+
+    <!-- OTP & Reset Section -->
+    <div id="forgotOTPSection" style="display:none">
+      <div class="login-title">Enter Code & New Password</div>
+      <div class="login-sub" id="forgotOtpSubText">Enter the 6-digit code sent to your email</div>
+
+      <div class="form-group">
+        <label class="form-label">Verification Code (OTP)</label>
+        <input type="text" class="form-input" id="forgotOTP" placeholder="123456" maxlength="6" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">New Password (min 6 chars)</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="forgotNewPass" placeholder="••••••••">
+          <span class="password-toggle-btn" id="forgotNewPassToggle" onclick="togglePassword('forgotNewPass', 'forgotNewPassToggle')">👁️</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Confirm New Password</label>
+        <div class="password-wrapper">
+          <input type="password" class="form-input" id="forgotConfirmPass" placeholder="••••••••">
+          <span class="password-toggle-btn" id="forgotConfirmPassToggle" onclick="togglePassword('forgotConfirmPass', 'forgotConfirmPassToggle')">👁️</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="submitResetPassword()">Reset Password & Continue →</button>
+
+      <div style="display:flex; justify-content:space-between; margin-top:20px; font-size:13px;">
+        <a href="#" onclick="showForgotInitial()" style="color:var(--text-muted); text-decoration:none;">← Change email</a>
+        <a href="#" onclick="sendForgotOTP()" style="color:var(--gold); text-decoration:none; font-weight:600">Resend Code</a>
+      </div>
+      <p style="text-align:center;margin-top:16px;font-size:13px;color:rgba(255,255,255,0.6);">
+        <a href="#" onclick="showLogin()" style="color:var(--text-muted);text-decoration:none;">← Back to Sign in</a>
+      </p>
+    </div>
   </div>
 </div>
 
@@ -2233,12 +2301,85 @@ const API_URL = window.location.origin + '/api';
 
 function showRegister() {
   document.getElementById('loginScreen').classList.remove('active');
+  if (document.getElementById('forgotPasswordScreen')) document.getElementById('forgotPasswordScreen').classList.remove('active');
   document.getElementById('registerScreen').classList.add('active');
   showRegInitial();
 }
 function showLogin() {
-  document.getElementById('registerScreen').classList.remove('active');
+  if (document.getElementById('registerScreen')) document.getElementById('registerScreen').classList.remove('active');
+  if (document.getElementById('forgotPasswordScreen')) document.getElementById('forgotPasswordScreen').classList.remove('active');
   document.getElementById('loginScreen').classList.add('active');
+}
+
+function showForgotPassword() {
+  document.getElementById('loginScreen').classList.remove('active');
+  if (document.getElementById('registerScreen')) document.getElementById('registerScreen').classList.remove('active');
+  document.getElementById('forgotPasswordScreen').classList.add('active');
+  showForgotInitial();
+}
+
+function showForgotInitial() {
+  document.getElementById('forgotInitial').style.display = 'block';
+  document.getElementById('forgotOTPSection').style.display = 'none';
+}
+
+async function sendForgotOTP() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) {
+    toast('Please enter your email address', 'error');
+    return;
+  }
+  try {
+    const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error);
+    toast(data.message || 'Verification code sent to your email', 'success');
+    document.getElementById('forgotInitial').style.display = 'none';
+    document.getElementById('forgotOTPSection').style.display = 'block';
+    document.getElementById('forgotOtpSubText').textContent = `Enter the 6-digit code sent to ${email}`;
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function submitResetPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const otp = document.getElementById('forgotOTP').value.trim();
+  const newPassword = document.getElementById('forgotNewPass').value.trim();
+  const confirmPassword = document.getElementById('forgotConfirmPass').value.trim();
+
+  if (!email || !otp || !newPassword || !confirmPassword) {
+    toast('Please fill in all fields', 'error');
+    return;
+  }
+  if (newPassword.length < 6) {
+    toast('New password must be at least 6 characters', 'error');
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    toast('New passwords do not match', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp, newPassword })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || data.error);
+    toast(data.message || 'Password reset successfully! Please sign in.', 'success');
+    document.getElementById('partnerEmail').value = email;
+    document.getElementById('partnerId').value = '';
+    showLogin();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
 }
 
 function showRegInitial() {

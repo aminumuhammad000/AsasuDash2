@@ -19,6 +19,8 @@ import type {
 
 export interface StoredUser extends User {
   passwordHash: string;
+  otp?: string;
+  otpExpires?: string;
 }
 
 export interface DatabaseShape {
@@ -68,7 +70,7 @@ export function normalizeName(value: string) {
 }
 
 export function publicUser(user: StoredUser): User {
-  const { passwordHash: _passwordHash, ...safeUser } = user;
+  const { passwordHash: _passwordHash, otp: _otp, otpExpires: _otpExpires, ...safeUser } = user;
   return safeUser;
 }
 

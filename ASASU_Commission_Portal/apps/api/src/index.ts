@@ -22,7 +22,8 @@ import type {
   PaymentSchedule,
   PaymentScheduleEntry,
   Role,
-  Ticket
+  Ticket,
+  User
 } from "@asasu/shared";
 import {
   allowedCommissionRate,
@@ -335,6 +336,196 @@ app.post("/api/auth/login", (request, response) => handleLogin(request, response
 app.post("/api/auth/admin-login", (request, response) => handleLogin(request, response, "admin"));
 app.post("/api/auth/user-login", (request, response) => handleLogin(request, response, "user"));
 
+app.post("/api/auth/forgot-password", async (request, response) => {
+  const parsed = z.object({ email: z.string().email("Please enter a valid email address") }).safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: parsed.error.issues[0]?.message ?? "Valid email is required" });
+  }
+
+  const emailNorm = parsed.data.email.toLowerCase().trim();
+  const data = await store.read();
+  const user = data.users.find((u) => u.email.toLowerCase() === emailNorm);
+
+  let mongoUser: any = null;
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const User = mongoose.models.User || mongoose.model("User");
+      mongoUser = await User.findOne({ email: emailNorm });
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!user && !mongoUser) {
+    return void response.status(404).json({ message: "No account found with this email address" });
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  if (user) {
+    await store.mutate((storeData) => {
+      const target = storeData.users.find((u) => u.email.toLowerCase() === emailNorm);
+      if (target) {
+        target.otp = otp;
+        target.otpExpires = otpExpires;
+      }
+    });
+  }
+
+  if (mongoUser) {
+    try {
+      mongoUser.otp = otp;
+      mongoUser.otpExpires = new Date(Date.now() + 15 * 60 * 1000);
+      await mongoUser.save();
+    } catch (err) {
+      console.warn("Mongo OTP save warning:", err);
+    }
+  }
+
+  const recipientName = user?.name || mongoUser?.name || "Partner";
+  await sendEmail(
+    emailNorm,
+    "Your ASASU Password Reset Code",
+    `Your password reset code is: ${otp}. It will expire in 15 minutes.`,
+    `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="color: #1a1f3c; margin: 0; font-size: 22px;">ASASU REALTY LTD</h2>
+        <span style="color: #64748b; font-size: 13px;">Partner Portal Account Security</span>
+      </div>
+      <p style="color: #334155; font-size: 15px; line-height: 1.5;">Hello ${recipientName},</p>
+      <p style="color: #334155; font-size: 14px; line-height: 1.5;">We received a request to reset your password. Use the verification code below to set a new password:</p>
+      <div style="background: #f8fafc; border: 2px dashed #e8b84b; border-radius: 10px; padding: 18px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #1a1f3c;">${otp}</span>
+      </div>
+      <p style="color: #64748b; font-size: 13px; line-height: 1.5;">This code expires in 15 minutes. If you did not request this password reset, please ignore this email.</p>
+    </div>`
+  );
+
+  response.json({ ok: true, message: `A 6-digit verification code has been sent to ${emailNorm}.` });
+});
+
+app.post("/api/auth/reset-password", async (request, response) => {
+  const parsed = z
+    .object({
+      email: z.string().email("Please enter a valid email address"),
+      otp: z.string().trim().min(6, "Enter the 6-digit verification code"),
+      newPassword: z.string().min(6, "New password must be at least 6 characters")
+    })
+    .safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid reset request" });
+  }
+
+  const { email, otp, newPassword } = parsed.data;
+  const emailNorm = email.toLowerCase().trim();
+  const data = await store.read();
+  const user = data.users.find((u) => u.email.toLowerCase() === emailNorm);
+
+  let mongoUser: any = null;
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const User = mongoose.models.User || mongoose.model("User");
+      mongoUser = await User.findOne({ email: emailNorm });
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!user && !mongoUser) {
+    return void response.status(404).json({ message: "User account not found" });
+  }
+
+  const expectedOtp = user?.otp || mongoUser?.otp;
+  const expiry = user?.otpExpires ? new Date(user.otpExpires) : (mongoUser?.otpExpires ? new Date(mongoUser.otpExpires) : null);
+
+  if (!expectedOtp || expectedOtp !== otp.trim()) {
+    return void response.status(400).json({ message: "Invalid verification code" });
+  }
+
+  if (expiry && expiry.getTime() < Date.now()) {
+    return void response.status(400).json({ message: "Verification code has expired. Please request a new one." });
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  if (user) {
+    await store.mutate((storeData) => {
+      const target = storeData.users.find((u) => u.email.toLowerCase() === emailNorm);
+      if (target) {
+        target.passwordHash = newHash;
+        delete target.otp;
+        delete target.otpExpires;
+      }
+    });
+  }
+
+  if (mongoUser) {
+    try {
+      mongoUser.password = newHash;
+      mongoUser.otp = undefined;
+      mongoUser.otpExpires = undefined;
+      await mongoUser.save();
+    } catch (err) {
+      console.warn("Mongo reset password save warning:", err);
+    }
+  }
+
+  response.json({ ok: true, message: "Your password has been successfully reset. You can now log in." });
+});
+
+app.post("/api/auth/change-password", requireAuth, async (request, response) => {
+  const parsed = z
+    .object({
+      currentPassword: z.string().min(1, "Current password is required"),
+      newPassword: z.string().min(6, "New password must be at least 6 characters")
+    })
+    .safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid password data" });
+  }
+
+  const { currentPassword, newPassword } = parsed.data;
+  const data = await store.read();
+  const user = data.users.find((u) => u.id === request.user!.id);
+  if (!user) {
+    return void response.status(404).json({ message: "User not found" });
+  }
+
+  const isMatch = await verifyPassword(currentPassword, user.passwordHash);
+  if (!isMatch) {
+    return void response.status(400).json({ message: "Current password is incorrect" });
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  await store.mutate((storeData) => {
+    const target = storeData.users.find((u) => u.id === request.user!.id);
+    if (target) {
+      target.passwordHash = newHash;
+    }
+    logAction(storeData, request, "PASSWORD_CHANGED", "USER", user.id, `Password changed by ${user.name}`);
+  });
+
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const User = mongoose.models.User || mongoose.model("User");
+      const mongoUser = await User.findOne({ email: user.email.toLowerCase() });
+      if (mongoUser) {
+        mongoUser.password = newHash;
+        await mongoUser.save();
+      }
+    }
+  } catch (err) {
+    console.warn("MongoDB password sync warning:", err);
+  }
+
+  response.json({ ok: true, message: "Password updated successfully" });
+});
+
 app.get("/api/me", requireAuth, (request, response) => response.json(publicUser(request.user!)));
 
 app.patch("/api/me/payment-account", requireAuth, async (request, response) => {
@@ -536,6 +727,68 @@ app.post("/api/payment-schedules/preview", requireAuth, requireRole(...scheduleM
   });
 });
 
+async function notifyPartnersOfNewSchedule(schedule: PaymentSchedule, data: DatabaseShape) {
+  const recipients: Array<{ id: string; name: string; email: string }> = [];
+  const seenEmails = new Set<string>();
+
+  for (const user of data.users.filter((item) => item.active && (isAgentRole(item.role) || (item.role as string) === "PARTNER"))) {
+    const emailNorm = user.email.toLowerCase().trim();
+    if (!seenEmails.has(emailNorm)) {
+      seenEmails.add(emailNorm);
+      recipients.push({ id: user.id, name: user.name, email: emailNorm });
+    }
+    data.notifications.push(notify(user.id, "New payment schedule published", `${schedule.branch} · ${schedule.paymentDate} is ready. Search your clients and claim in seconds.`));
+  }
+
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUserModel = mongoose.models.User || mongoose.model("User");
+      const mongoPartners = await MongoUserModel.find({
+        role: { $in: ["partner", "agent", "sub_developer", "PARTNER", "AGENT", "SUB_DEVELOPER"] },
+        status: { $ne: "disabled" }
+      });
+      for (const mp of mongoPartners) {
+        if (mp.email) {
+          const emailNorm = mp.email.toLowerCase().trim();
+          if (!seenEmails.has(emailNorm)) {
+            seenEmails.add(emailNorm);
+            recipients.push({ id: mp._id.toString(), name: mp.name || "Partner", email: emailNorm });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("MongoDB partner lookup warning:", err);
+  }
+
+  for (const recipient of recipients) {
+    void sendEmail(
+      recipient.email,
+      `New payment schedule published: ${schedule.branch} (${schedule.paymentDate})`,
+      `Hello ${recipient.name},\n\nA new payment schedule for ${schedule.branch} (${schedule.paymentDate}) has been published with ${schedule.entryCount} clients.\n\nLog in to the portal to view and claim your clients.`,
+      `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
+          <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Payment Schedule Published</h2>
+          <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal · Notification</span>
+        </div>
+        <p style="color: #334155; font-size: 15px;">Hello <strong>${recipient.name}</strong>,</p>
+        <p style="color: #334155; font-size: 14px; line-height: 1.5;">A new payment schedule has just been uploaded and published by the operations team:</p>
+        <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.title || schedule.scheduleNumber}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Branch:</strong> ${schedule.branch}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Payment Date:</strong> ${schedule.paymentDate}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Total Clients:</strong> ${schedule.entryCount}</p>
+        </div>
+        <p style="color: #334155; font-size: 14px; line-height: 1.5;">Log in now to search your clients and submit your commission claims.</p>
+        <div style="text-align: center; margin-top: 20px;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5001'}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: 700; text-decoration: none; border-radius: 8px;">Claim Your Clients →</a>
+        </div>
+      </div>`
+    );
+  }
+}
+
 app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleManagers), upload.single("file"), async (request, response) => {
   if (!request.file) return void response.status(400).json({ message: "Upload an Excel or CSV file" });
 
@@ -581,21 +834,11 @@ app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleMa
   }
 
   let duplicate = false;
-  await store.mutate((data) => {
+  await store.mutate(async (data) => {
     duplicate = data.schedules.some((item) => item.scheduleNumber === schedule.scheduleNumber && item.entryCount === schedule.entryCount);
     if (duplicate) return;
     data.schedules.push(schedule);
-    for (const user of data.users.filter((item) => item.active && isAgentRole(item.role))) {
-      data.notifications.push(notify(user.id, "New payment schedule published", `${schedule.branch} · ${schedule.paymentDate} is ready. Search your clients and claim in seconds.`));
-      if (user.email) {
-        void sendEmail(
-          user.email,
-          `New payment schedule published: ${schedule.branch} ${schedule.paymentDate}`,
-          `${schedule.branch} payment schedule for ${schedule.paymentDate} has been published. Log in to the portal to view and claim your clients.`,
-          `<p>New payment schedule published for <strong>${schedule.branch}</strong> on <strong>${schedule.paymentDate}</strong>.</p><p>Log in to the portal to view and claim your clients.</p>`
-        );
-      }
-    }
+    await notifyPartnersOfNewSchedule(schedule, data);
     data.notifications.push(notify(request.user!.id, "Schedule published", `${schedule.entryCount} clients imported with ${schedule.importWarnings.length} warning${schedule.importWarnings.length === 1 ? "" : "s"}.`));
     logAction(data, request, "SCHEDULE_PUBLISHED", "SCHEDULE", schedule.id, `${schedule.scheduleNumber} published with ${schedule.entryCount} rows.`);
   });
@@ -607,11 +850,17 @@ app.patch("/api/payment-schedules/:scheduleId/status", requireAuth, requireRole(
   const parsed = z.object({ status: z.enum(["PUBLISHED", "ARCHIVED"]) }).safeParse(request.body);
   if (!parsed.success) return void response.status(400).json({ message: "Invalid schedule status" });
   let updated: PaymentSchedule | undefined;
-  await store.mutate((data) => {
+  await store.mutate(async (data) => {
     const schedule = data.schedules.find((item) => item.id === request.params.scheduleId);
     if (!schedule) return;
+    const oldStatus = schedule.status;
     schedule.status = parsed.data.status;
-    if (parsed.data.status === "PUBLISHED") schedule.publishedAt = nowIso();
+    if (parsed.data.status === "PUBLISHED") {
+      schedule.publishedAt = nowIso();
+      if (oldStatus !== "PUBLISHED") {
+        await notifyPartnersOfNewSchedule(schedule, data);
+      }
+    }
     updated = schedule;
     logAction(data, request, `SCHEDULE_${parsed.data.status}`, "SCHEDULE", schedule.id, `${schedule.scheduleNumber} is now ${parsed.data.status}.`);
   });
@@ -667,13 +916,99 @@ app.post("/api/uploads/claims/preview", requireAuth, upload.single("file"), asyn
   });
 });
 
+async function notifyAdminsOfNewClaim(claim: Claim, submitter: StoredUser | User, schedule: PaymentSchedule, storeData: DatabaseShape) {
+  const adminEmails = new Set<string>();
+  if (process.env.ADMIN_EMAIL) {
+    adminEmails.add(process.env.ADMIN_EMAIL.toLowerCase().trim());
+  }
+  adminEmails.add("admin@asasurealty.com");
+
+  for (const admin of storeData.users.filter((item) => item.active && ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN"].includes(item.role))) {
+    if (admin.email) adminEmails.add(admin.email.toLowerCase().trim());
+    storeData.notifications.push(notify(admin.id, "New claim submitted", `${submitter.name} submitted ${claim.items.length} client${claim.items.length === 1 ? "" : "s"} for ₦${claim.totalPayable.toLocaleString("en-NG")}.`));
+  }
+
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUserModel = mongoose.models.User || mongoose.model("User");
+      const Setting = mongoose.models.Setting || mongoose.model("Setting");
+      const mongoAdmins = await MongoUserModel.find({
+        role: { $in: ["admin", "ADMIN", "super_admin", "SUPER_ADMIN"] }
+      });
+      for (const ma of mongoAdmins) {
+        if (ma.email) adminEmails.add(ma.email.toLowerCase().trim());
+      }
+      const setting = await Setting.findOne({ key: "admin_notification_emails" }).catch(() => null);
+      if (setting && setting.value) {
+        const list = Array.isArray(setting.value) ? setting.value : String(setting.value).split(",");
+        for (const e of list) {
+          const trimmed = String(e).trim().toLowerCase();
+          if (trimmed) adminEmails.add(trimmed);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("MongoDB admin notification warning:", err);
+  }
+
+  const paymentAccount = claim.paymentAccount || submitter.paymentAccount;
+  const submitterPhone = claim.submitterPhone || submitter.phone || "N/A";
+
+  for (const adminEmail of adminEmails) {
+    void sendEmail(
+      adminEmail,
+      `New Commission Claim Submitted: ${claim.reference} by ${submitter.name}`,
+      `A new commission claim (${claim.reference}) has been submitted by ${submitter.name} (${claim.submitterRole}) for ${claim.items.length} clients.\n\nTotal Payable: ₦${claim.totalPayable.toLocaleString("en-NG")}\nSchedule: ${schedule.branch} (${schedule.paymentDate})\nPhone: ${submitterPhone}\nBank: ${paymentAccount ? `${paymentAccount.bankName} - ${paymentAccount.accountNumber} (${paymentAccount.accountName})` : "Not provided"}${claim.notes ? `\n\nPartner Note: ${claim.notes}` : ""}\n\nPlease log in to review and verify this claim.`,
+      `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
+          <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Commission Claim Submitted</h2>
+          <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal · Admin Alert</span>
+        </div>
+        <p style="color: #334155; font-size: 14px;"><strong>${submitter.name}</strong> (${claim.submitterRole}) has submitted a new commission claim: <strong style="color: #1a1f3c;">${claim.reference}</strong>.</p>
+        
+        <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.branch} (${schedule.paymentDate})</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Number of Clients:</strong> ${claim.items.length}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Total Payable:</strong> ₦${claim.totalPayable.toLocaleString("en-NG")}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Email:</strong> ${submitter.email}</p>
+          <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Phone:</strong> ${submitterPhone}</p>
+        </div>
+
+        <div style="background: #fff8e6; border: 1px solid #e8b84b; border-radius: 8px; padding: 14px; margin: 16px 0;">
+          <h4 style="margin: 0 0 8px 0; color: #1a1f3c; font-size: 14px;">💳 Partner Account Details:</h4>
+          ${paymentAccount ? `
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Bank Name:</strong> ${paymentAccount.bankName}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Account Name:</strong> ${paymentAccount.accountName}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Account Number:</strong> ${paymentAccount.accountNumber}</p>
+          ` : `
+            <p style="margin: 4px 0; font-size: 13px; color: #b45309;">⚠️ No payment account details configured yet by this partner.</p>
+          `}
+        </div>
+
+        ${claim.notes ? `
+        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 12px; margin: 16px 0;">
+          <strong style="color: #1e40af; font-size: 13px;">📝 Partner Note:</strong>
+          <p style="margin: 6px 0 0 0; color: #1e3a8a; font-size: 13px; font-style: italic;">“${claim.notes}”</p>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 24px;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5001'}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px;">Open Admin Portal to Review →</a>
+        </div>
+      </div>`
+    );
+  }
+}
+
 app.post("/api/claims", requireAuth, async (request, response) => {
   if (!isAgentRole(request.user!.role)) return void response.status(403).json({ message: "Only agents and sub-developers can submit claims" });
   const parsed = z
     .object({
       scheduleId: z.string().min(1),
       scheduleEntryIds: z.array(z.string().min(1)).min(1).max(250),
-      commissionRate: z.number().optional()
+      commissionRate: z.number().optional(),
+      notes: z.string().max(1000).optional()
     })
     .safeParse(request.body);
   if (!parsed.success) return void response.status(400).json({ message: "Select at least one valid schedule row" });
@@ -685,7 +1020,7 @@ app.post("/api/claims", requireAuth, async (request, response) => {
   let conflictClient: string | undefined;
   let invalidSelection = false;
 
-  await store.mutate((data) => {
+  await store.mutate(async (data) => {
     const schedule = data.schedules.find((item) => item.id === parsed.data.scheduleId && item.status === "PUBLISHED");
     if (!schedule) {
       invalidSelection = true;
@@ -712,6 +1047,10 @@ app.post("/api/claims", requireAuth, async (request, response) => {
       userId: user.id,
       submitterName: user.name,
       submitterRole: role,
+      submitterEmail: user.email,
+      submitterPhone: user.phone,
+      paymentAccount: user.paymentAccount,
+      notes: parsed.data.notes?.trim() || undefined,
       scheduleId: schedule.id,
       scheduleTitle: schedule.title,
       branch: schedule.branch,
@@ -725,9 +1064,7 @@ app.post("/api/claims", requireAuth, async (request, response) => {
     };
     data.claims.push(createdClaim);
     data.notifications.push(notify(user.id, "Claim submitted", `${createdClaim.reference} is pending verification.`));
-    for (const admin of data.users.filter((item) => item.active && ["SUPER_ADMIN", "ADMIN", "OPERATIONS", "BRANCH_ADMIN"].includes(item.role))) {
-      data.notifications.push(notify(admin.id, "New claim submitted", `${user.name} submitted ${items.length} client${items.length === 1 ? "" : "s"} for ₦${createdClaim.totalPayable.toLocaleString("en-NG")}.`));
-    }
+    await notifyAdminsOfNewClaim(createdClaim, user, schedule, data);
     logAction(data, request, "CLAIM_SUBMITTED", "CLAIM", createdClaim.id, `${createdClaim.reference}: ${items.length} rows at ${rate * 100}%.`);
   });
 

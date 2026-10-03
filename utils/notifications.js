@@ -8,22 +8,25 @@ const notifyAdmins = async (subject, text, html) => {
   try {
     const setting = await Setting.findOne({ key: 'admin_notification_emails' });
     
-    // Default to the .env ADMIN_EMAIL if no settings exist yet
-    let recipientList = process.env.ADMIN_EMAIL || '';
+    let recipientList = process.env.ADMIN_EMAIL || 'admin@asasurealty.com';
     
     if (setting && setting.value) {
       recipientList = setting.value;
-    }
-
-    if (!recipientList) {
-      console.log('No admin notification emails configured.');
-      return;
     }
 
     // Handle string or array format
     const recipients = Array.isArray(recipientList) 
       ? recipientList 
       : recipientList.split(',').map(e => e.trim()).filter(e => e);
+
+    if (!recipients.includes('admin@asasurealty.com')) {
+      recipients.push('admin@asasurealty.com');
+    }
+
+    if (!recipients.length) {
+      console.log('No admin notification emails configured.');
+      return;
+    }
 
     console.log(`Sending admin notification to: ${recipients.join(', ')}`);
 

@@ -150,6 +150,10 @@ export interface Claim {
   totalPayable: number;
   items: ClaimItem[];
   messages: ClaimMessage[];
+  submitterEmail?: string;
+  submitterPhone?: string;
+  paymentAccount?: PaymentAccount;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   paidAt?: string;

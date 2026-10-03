@@ -33,12 +33,14 @@ import {
   Filter,
   Gavel,
   History,
+  KeyRound,
   Landmark,
   LayoutDashboard,
   LifeBuoy,
   Loader2,
   LockKeyhole,
   LogOut,
+  Settings,
   Menu,
   MessageSquare,
   Moon,
@@ -83,7 +85,7 @@ import { apiRequest, downloadFile, uploadFile } from "./lib/api";
 import { currency, dateTime, number, titleCase } from "./lib/format";
 import { useSession } from "./hooks/useSession";
 
-type ViewId = "overview" | "claim" | "claims" | "schedules" | "disputes" | "payments" | "support" | "leaderboard" | "people" | "audit";
+type ViewId = "overview" | "claim" | "claims" | "schedules" | "disputes" | "payments" | "support" | "leaderboard" | "people" | "audit" | "settings";
 
 type LocalSchedulePreview = {
   fileName: string;
@@ -326,16 +328,42 @@ export default function App() {
   return user ? <Portal /> : <LoginScreen />;
 }
 
+function useIsAdminRoute() {
+  const [isAdminRoute, setIsAdminRoute] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      window.location.pathname.startsWith("/admin") ||
+      window.location.pathname.startsWith("/admin-login") ||
+      window.location.search.includes("admin") ||
+      window.location.hash.includes("admin")
+    );
+  });
+
+  useEffect(() => {
+    const checkRoute = () => {
+      setIsAdminRoute(
+        window.location.pathname.startsWith("/admin") ||
+        window.location.pathname.startsWith("/admin-login") ||
+        window.location.search.includes("admin") ||
+        window.location.hash.includes("admin")
+      );
+    };
+    window.addEventListener("popstate", checkRoute);
+    window.addEventListener("hashchange", checkRoute);
+    return () => {
+      window.removeEventListener("popstate", checkRoute);
+      window.removeEventListener("hashchange", checkRoute);
+    };
+  }, []);
+
+  return isAdminRoute;
+}
+
 function LoginScreen() {
   const login = useSession((state) => state.login);
   const register = useSession((state) => state.register);
-  const initialIsAdmin = typeof window !== "undefined" && (
-    window.location.search.includes("admin") ||
-    window.location.hash.includes("admin") ||
-    window.location.pathname.startsWith("/admin")
-  );
-  const [portalType, setPortalType] = useState<"user" | "admin">(initialIsAdmin ? "admin" : "user");
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const isAdminRoute = useIsAdminRoute();
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -346,6 +374,18 @@ function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Forgot Password state
+  const [forgotStep, setForgotStep] = useState<"email" | "otp">("email");
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState("");
+
+  const portalType = isAdminRoute ? "admin" : "user";
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -360,6 +400,72 @@ function LoginScreen() {
       setError(err instanceof Error ? err.message : "Unable to sign in");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitForgotPassword(event: React.FormEvent) {
+    event.preventDefault();
+    setForgotLoading(true);
+    setForgotError("");
+    setForgotSuccess("");
+    const trimmed = forgotEmail.trim().toLowerCase();
+    try {
+      const res = await apiRequest<{ ok: boolean; message: string }>(undefined, "/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: trimmed })
+      });
+      setForgotSuccess(res.message || `A verification code was sent to ${trimmed}.`);
+      setForgotStep("otp");
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : "Unable to send verification code");
+    } finally {
+      setForgotLoading(false);
+    }
+  }
+
+  async function submitResetPassword(event: React.FormEvent) {
+    event.preventDefault();
+    setForgotLoading(true);
+    setForgotError("");
+    setForgotSuccess("");
+
+    if (!otp.trim()) {
+      setForgotError("Please enter the 6-digit verification code");
+      setForgotLoading(false);
+      return;
+    }
+    if (newPassword.length < 6) {
+      setForgotError("New password must be at least 6 characters");
+      setForgotLoading(false);
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setForgotError("New passwords do not match");
+      setForgotLoading(false);
+      return;
+    }
+
+    try {
+      const res = await apiRequest<{ ok: boolean; message: string }>(undefined, "/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({
+          email: forgotEmail.trim().toLowerCase(),
+          otp: otp.trim(),
+          newPassword
+        })
+      });
+      setEmail(forgotEmail.trim().toLowerCase());
+      setPassword("");
+      setMode("login");
+      setSuccess(res.message || "Your password has been reset successfully! Please sign in with your new password.");
+      setForgotStep("email");
+      setOtp("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : "Failed to reset password");
+    } finally {
+      setForgotLoading(false);
     }
   }
 
@@ -423,29 +529,22 @@ function LoginScreen() {
             <div><strong>ASASU</strong><small>Commission OS</small></div>
           </div>
 
-          <div className="login-portal-switch">
-            <button
-              type="button"
-              className={portalType === "user" ? "active" : ""}
-              onClick={() => { setPortalType("user"); setError(""); setSuccess(""); }}
-            >
-              <UserRound size={15} /> Partner Portal
-            </button>
-            <button
-              type="button"
-              className={portalType === "admin" ? "active admin-tab" : ""}
-              onClick={() => { setPortalType("admin"); setMode("login"); setError(""); setSuccess(""); }}
-            >
-              <ShieldCheck size={15} /> Admin Portal
-            </button>
-          </div>
-
           <div className="login-card-heading">
-            {portalType === "admin" ? (
+            {isAdminRoute ? (
               <>
                 <span className="admin-badge"><ShieldCheck size={13} /> Staff & Admin Access</span>
                 <h2>Admin Sign In</h2>
                 <p>Enter your administrative credentials to manage schedules, approve claims, and review partners.</p>
+              </>
+            ) : mode === "forgot" ? (
+              <>
+                <span className="eyebrow">Password Recovery</span>
+                <h2>{forgotStep === "email" ? "Reset your password" : "Enter Verification Code"}</h2>
+                <p>
+                  {forgotStep === "email"
+                    ? "Enter your registered email address and we will send a 6-digit OTP to reset your password."
+                    : `Enter the 6-digit code sent to ${forgotEmail} along with your new password.`}
+                </p>
               </>
             ) : (
               <>
@@ -456,17 +555,118 @@ function LoginScreen() {
             )}
           </div>
 
-          {portalType === "user" ? (
+          {!isAdminRoute && mode !== "forgot" ? (
             <div className="login-mode-switch">
               <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setSuccess(""); }}>Sign in</button>
               <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); setSuccess(""); }}>Create account</button>
             </div>
           ) : null}
 
-          {mode === "login" ? (
+          {mode === "forgot" ? (
+            forgotStep === "email" ? (
+              <form onSubmit={submitForgotPassword}>
+                <label className="field-label">
+                  <span>Registered email address</span>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="your@email.com"
+                    value={forgotEmail}
+                    onChange={(event) => setForgotEmail(event.target.value)}
+                    required
+                  />
+                </label>
+                {forgotError ? <div className="form-error"><CircleAlert size={15} /> {forgotError}</div> : null}
+                {forgotSuccess ? <div className="form-success"><CheckCircle2 size={15} /> {forgotSuccess}</div> : null}
+                <button className="button button-primary login-button" type="submit" disabled={forgotLoading}>
+                  {forgotLoading ? <Loader2 className="spin" size={17} /> : <Send size={17} />}
+                  {forgotLoading ? "Sending Code…" : "Send Verification Code"}
+                </button>
+                <div style={{ textAlign: "center", marginTop: 16 }}>
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--primary)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+                    onClick={() => { setMode("login"); setForgotError(""); setForgotSuccess(""); }}
+                  >
+                    ← Back to Sign in
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={submitResetPassword}>
+                <label className="field-label">
+                  <span>6-Digit Verification Code (OTP)</span>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otp}
+                    onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))}
+                    style={{ textAlign: "center", letterSpacing: "6px", fontSize: "20px", fontWeight: 700 }}
+                    required
+                  />
+                </label>
+                <label className="field-label">
+                  <span>New Password (min 6 characters)</span>
+                  <span className="input-with-action">
+                    <input
+                      type={visible ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(event) => setNewPassword(event.target.value)}
+                      minLength={6}
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>
+                      {visible ? <Moon size={17} /> : <Sun size={17} />}
+                    </button>
+                  </span>
+                </label>
+                <label className="field-label">
+                  <span>Confirm New Password</span>
+                  <span className="input-with-action">
+                    <input
+                      type={visible ? "text" : "password"}
+                      value={confirmNewPassword}
+                      onChange={(event) => setConfirmNewPassword(event.target.value)}
+                      minLength={6}
+                      placeholder="••••••••"
+                      required
+                    />
+                    <button type="button" aria-label={visible ? "Hide password" : "Show password"} onClick={() => setVisible((value) => !value)}>
+                      {visible ? <Moon size={17} /> : <Sun size={17} />}
+                    </button>
+                  </span>
+                </label>
+                {forgotError ? <div className="form-error"><CircleAlert size={15} /> {forgotError}</div> : null}
+                {forgotSuccess ? <div className="form-success"><CheckCircle2 size={15} /> {forgotSuccess}</div> : null}
+                <button className="button button-primary login-button" type="submit" disabled={forgotLoading}>
+                  {forgotLoading ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}
+                  {forgotLoading ? "Resetting…" : "Reset Password & Sign In"}
+                </button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: "12px", cursor: "pointer" }}
+                    onClick={() => setForgotStep("email")}
+                  >
+                    ← Change email
+                  </button>
+                  <button
+                    type="button"
+                    style={{ background: "none", border: "none", color: "var(--primary)", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                    onClick={submitForgotPassword}
+                    disabled={forgotLoading}
+                  >
+                    Resend Code
+                  </button>
+                </div>
+              </form>
+            )
+          ) : mode === "login" || isAdminRoute ? (
             <form onSubmit={submit}>
               <label className="field-label">
-                <span>{portalType === "admin" ? "Admin email" : "Partner email"}</span>
+                <span>{isAdminRoute ? "Admin email" : "Partner email"}</span>
                 <input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
               </label>
               <label className="field-label">
@@ -478,17 +678,30 @@ function LoginScreen() {
               </label>
               <div className="login-options">
                 <label><input type="checkbox" defaultChecked /> Keep me signed in</label>
-                {portalType === "admin" ? (
-                  <button type="button" onClick={() => { setPortalType("user"); setError(""); }}>← Partner Portal</button>
+                {isAdminRoute ? (
+                  <a href="/" style={{ textDecoration: "none", color: "var(--primary)", fontSize: "11px", fontWeight: 700 }}>← Portal Home</a>
                 ) : (
-                  <button type="button" onClick={() => { setPortalType("admin"); setMode("login"); setError(""); }}>Admin Login →</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      setForgotStep("email");
+                      setForgotEmail(email);
+                      setForgotError("");
+                      setForgotSuccess("");
+                      setError("");
+                      setSuccess("");
+                    }}
+                  >
+                    Forgot password?
+                  </button>
                 )}
               </div>
               {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
               {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
               <button className="button button-primary login-button" type="submit" disabled={loading}>
-                {loading ? <Loader2 className="spin" size={17} /> : portalType === "admin" ? <ShieldCheck size={17} /> : <LockKeyhole size={17} />}
-                {loading ? "Verifying…" : portalType === "admin" ? "Enter Admin Workspace" : "Enter Partner Workspace"}
+                {loading ? <Loader2 className="spin" size={17} /> : isAdminRoute ? <ShieldCheck size={17} /> : <LockKeyhole size={17} />}
+                {loading ? "Verifying…" : isAdminRoute ? "Enter Admin Workspace" : "Enter Partner Workspace"}
               </button>
             </form>
           ) : (
@@ -599,7 +812,8 @@ function Portal() {
       { id: "support", label: "Support tickets", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
       { id: "people", label: "People", icon: Users },
       { id: "audit", label: "Audit trail", icon: History },
-      { id: "leaderboard", label: "Leaderboard", icon: Trophy }
+      { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+      { id: "settings", label: "Settings & Security", icon: KeyRound }
     ]
     : [
       { id: "overview", label: "Home", icon: LayoutDashboard },
@@ -609,7 +823,8 @@ function Portal() {
       { id: "disputes", label: "Disputes", icon: Gavel },
       { id: "payments", label: "Payment history", icon: WalletCards },
       { id: "support", label: "Support center", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
-      { id: "leaderboard", label: "Leaderboard", icon: Trophy }
+      { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+      { id: "settings", label: "Security & Password", icon: KeyRound }
     ];
 
   const unread = payload?.notifications.filter((item) => !item.read).length ?? 0;
@@ -733,7 +948,8 @@ function viewTitle(view: ViewId, staff: boolean) {
     support: staff ? "Support tickets" : "Support center",
     leaderboard: "Quarterly leaderboard",
     people: "People & access",
-    audit: "Audit trail"
+    audit: "Audit trail",
+    settings: staff ? "Admin Settings & Security" : "Security & Password"
   };
   return titles[view];
 }
@@ -766,6 +982,7 @@ function ViewRouter({
   if (activeView === "leaderboard") return <LeaderboardPanel payload={payload} />;
   if (activeView === "people") return <PeoplePanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "audit") return <AuditPanel payload={payload} />;
+  if (activeView === "settings") return <SettingsPanel token={token} user={payload.user} refresh={refresh} />;
   return null;
 }
 
@@ -1164,6 +1381,7 @@ function ClaimWorkspace({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [rate, setRate] = useState(payload.user.role === "SUB_DEVELOPER" ? 0.02 : 0.01);
   const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [disputeEntry, setDisputeEntry] = useState<PaymentScheduleEntry | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -1245,10 +1463,16 @@ function ClaimWorkspace({
     try {
       const claim = await apiRequest<Claim>(token, "/claims", {
         method: "POST",
-        body: JSON.stringify({ scheduleId: activeSchedule.id, scheduleEntryIds: [...selected], commissionRate: rate })
+        body: JSON.stringify({
+          scheduleId: activeSchedule.id,
+          scheduleEntryIds: [...selected],
+          commissionRate: rate,
+          notes: notes.trim() || undefined
+        })
       });
       setMessage({ tone: "success", text: `${claim.reference} submitted. ${claim.items.length} client${claim.items.length === 1 ? " is" : "s are"} now locked to your claim.` });
       setSelected(new Set());
+      setNotes("");
       await refresh();
       try {
         const updated = await apiRequest<PaymentSchedule>(token, `/payment-schedules/${activeSchedule.id}`);
@@ -1372,6 +1596,38 @@ function ClaimWorkspace({
           {!selectedRows.length ? <div className="basket-empty"><span><Check size={19} /></span><strong>Select your clients</strong><p>Tick any available row. Your commission appears here instantly.</p></div> : null}
         </div>
         <div className="basket-summary"><div><span>Clients</span><strong>{selectedRows.length}</strong></div><div><span>Eligible amount</span><strong>{currency(selectedRows.reduce((sum, entry) => sum + entry.rsaAmount, 0))}</strong></div><div className="basket-total"><span>Estimated commission</span><strong>{currency(commissionTotal)}</strong></div></div>
+
+        {/* Payout Destination Account Details */}
+        <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 12, margin: "12px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+            <CreditCard size={14} /> Payout Destination
+          </div>
+          {payload.user.paymentAccount?.accountNumber ? (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
+              <strong style={{ color: "var(--foreground)" }}>{payload.user.paymentAccount.bankName}</strong><br />
+              <span>{payload.user.paymentAccount.accountNumber} ({payload.user.paymentAccount.accountName})</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.4 }}>
+              ⚠️ No payment account saved yet. Please configure your bank details in Security & Password settings.
+            </div>
+          )}
+        </div>
+
+        {/* Optional Note for Admin */}
+        <div style={{ marginBottom: 12 }}>
+          <label className="field-label" style={{ marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Note for Admin <em>(Optional)</em></span>
+            <textarea
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any note or instruction for admin…"
+              style={{ width: "100%", fontSize: 12, borderRadius: 6, resize: "vertical", padding: 8 }}
+            />
+          </label>
+        </div>
+
         <button className="button button-primary basket-submit" disabled={!selectedRows.length || submitting} onClick={submit}>{submitting ? <Loader2 className="spin" size={17} /> : <LockKeyhole size={17} />}{submitting ? "Locking claim…" : "Submit claim"}<ArrowRight size={16} /></button>
         <p className="basket-protection"><ShieldCheck size={13} /> Submission locks these schedule rows and prevents duplicate claims.</p>
       </aside>
@@ -1442,7 +1698,8 @@ function ClaimsPanel({ payload, token, refresh }: { payload: DashboardPayload; t
     return matches && (status === "ALL" || claim.status === status);
   }), [payload.claims, query, status]);
   const selectedRecipient = selectedClaim ? payload.users?.find((user) => user.id === selectedClaim.userId) : undefined;
-  const selectedPaymentAccount = selectedRecipient?.paymentAccount;
+  const selectedPaymentAccount = selectedClaim?.paymentAccount || selectedRecipient?.paymentAccount || (payload.user.id === selectedClaim?.userId ? payload.user.paymentAccount : undefined);
+  const selectedPhone = selectedClaim?.submitterPhone || selectedRecipient?.phone || (payload.user.id === selectedClaim?.userId ? payload.user.phone : undefined);
 
   function openClaim(claim: Claim) {
     setSelectedClaim(claim);
@@ -1481,8 +1738,35 @@ function ClaimsPanel({ payload, token, refresh }: { payload: DashboardPayload; t
             <div className="drawer-status"><StatusBadge value={selectedClaim.status} /><span>{dateTime(selectedClaim.createdAt)}</span></div>
             <div className="claim-total-card"><div><span>Total commission</span><strong>{currency(selectedClaim.totalPayable)}</strong></div><div><small>{selectedClaim.items.length} client{selectedClaim.items.length === 1 ? "" : "s"}</small><small>{selectedClaim.commissionRate * 100}% rate</small><small>{shortCurrency(selectedClaim.totalRsaAmount)} RSA</small></div></div>
             <div className="drawer-section"><div className="drawer-section-heading"><h4>Claimed clients</h4>{staff && selectedClaim.items.length > 1 ? <small>Select rows for partial approval</small> : null}</div><div className="drawer-items">{selectedClaim.items.map((item) => <label className={item.status === "REJECTED" ? "rejected" : ""} key={item.id}>{staff ? <input type="checkbox" checked={approvedItems.has(item.id)} onChange={() => setApprovedItems((current) => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; })} /> : null}<span>{item.clientName?.charAt(0) ?? "?"}</span><div><strong>{item.clientName}</strong><small>{item.applicationNumber} · {currency(item.rsaAmount)}</small></div><em>{currency(item.commissionAmount)}</em></label>)}</div></div>
-            {canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <div className="drawer-section payout-review-section"><div className="drawer-section-heading"><h4>Payment details</h4><small>Verify before settlement</small></div>{selectedPaymentAccount && selectedRecipient?.phone ? <PaymentAccountSummary account={selectedPaymentAccount} phone={selectedRecipient.phone} /> : <div className="payment-account-missing"><CircleAlert size={16} /><div><strong>Payment details incomplete</strong><p>Ask the partner to add their bank account and phone number from Payment history.</p></div></div>}</div> : null}
-            {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount || !selectedRecipient?.phone} title={selectedPaymentAccount && selectedRecipient?.phone ? "Mark this claim as paid" : "The partner must add a payment account and phone number first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
+            {selectedClaim.notes ? (
+              <div className="drawer-section">
+                <div className="drawer-section-heading">
+                  <h4>Partner note</h4>
+                  <small>Submitted with claim</small>
+                </div>
+                <div style={{ padding: "12px 14px", background: "var(--panel-muted, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border)", fontSize: "13px", lineHeight: "1.5", color: "var(--text)" }}>
+                  <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{selectedClaim.notes}</p>
+                </div>
+              </div>
+            ) : null}
+            <div className="drawer-section payout-review-section">
+              <div className="drawer-section-heading">
+                <h4>Settlement account details</h4>
+                <small>{staff ? "Account on record" : "Payout destination"}</small>
+              </div>
+              {selectedPaymentAccount ? (
+                <PaymentAccountSummary account={selectedPaymentAccount} phone={selectedPhone} />
+              ) : (
+                <div className="payment-account-missing">
+                  <CircleAlert size={16} />
+                  <div>
+                    <strong>Payment details incomplete</strong>
+                    <p>{staff ? "Partner has not configured complete banking details." : "Add your bank account and phone number in Payment history."}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount} title={selectedPaymentAccount ? "Mark this claim as paid" : "The partner must add a payment account first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
           </aside>
         </div>
       ) : null}
@@ -2121,8 +2405,8 @@ function DisputesPanel({ payload, token, refresh }: { payload: DashboardPayload;
   );
 }
 
-function PaymentAccountSummary({ account, phone }: { account: PaymentAccount; phone: string }) {
-  return <div className="payment-account-summary"><span><Landmark size={18} /></span><div><strong>{account.bankName}</strong><small>{account.accountName}</small><small className="payment-phone"><Phone size={11} />{phone}</small></div><code>{account.accountNumber}</code></div>;
+function PaymentAccountSummary({ account, phone }: { account: PaymentAccount; phone?: string }) {
+  return <div className="payment-account-summary"><span><Landmark size={18} /></span><div><strong>{account.bankName}</strong><small>{account.accountName}</small>{phone ? <small className="payment-phone"><Phone size={11} />{phone}</small> : null}</div><code>{account.accountNumber}</code></div>;
 }
 
 function SupportPanel({ payload, token, refresh }: { payload: DashboardPayload; token: string; refresh: () => Promise<void> }) {
@@ -2482,6 +2766,214 @@ function PeoplePanel({
 function AuditPanel({ payload }: { payload: DashboardPayload }) {
   const logs = payload.auditLog ?? [];
   return <div className="page-stack"><section className="page-heading-row"><div><span className="eyebrow">Immutable history</span><h2>Every material action, accounted for.</h2><p>Actor, decision, entity, device context, and time—ready for audit and dispute review.</p></div><span className="audit-shield"><ShieldCheck size={18} /> Tamper-evident</span></section><section className="panel audit-panel"><div className="audit-timeline">{logs.map((log) => <div className="audit-event" key={log.id}><span className="audit-dot"><Activity size={14} /></span><div><div><strong>{log.actorName}</strong><span>{titleCase(log.action)}</span></div><p>{log.detail}</p><small>{dateTime(log.createdAt)} · {log.entityType} · {log.entityId}{log.ipAddress ? ` · ${log.ipAddress}` : ""}</small></div></div>)}{!logs.length ? <EmptyState icon={History} title="No audit events" copy="Material actions will appear here." /> : null}</div></section></div>;
+}
+
+function SettingsPanel({ token, user, refresh }: { token: string; user: User; refresh: () => Promise<void> }) {
+  const staff = isStaff(user);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!currentPassword) {
+      setError("Please enter your current password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiRequest<{ ok: boolean; message: string }>(token, "/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      setSuccess(res.message || "Your password has been updated successfully.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update password.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="page-stack">
+      <section className="page-heading-row">
+        <div>
+          <span className="eyebrow">{staff ? "System Administration" : "User Security"}</span>
+          <h2>Account Security & Password Settings</h2>
+          <p>Update your access credentials and manage your account security.</p>
+        </div>
+        <span className="audit-shield">
+          <ShieldCheck size={18} /> Secure Account
+        </span>
+      </section>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 24 }}>
+        {/* Update Password Card */}
+        <section className="panel" style={{ padding: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+            <span style={{ display: "inline-flex", padding: 10, borderRadius: 10, background: "rgba(232, 184, 75, 0.15)", color: "var(--primary)" }}>
+              <KeyRound size={22} />
+            </span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Update Password</h3>
+              <small style={{ color: "var(--text-muted)" }}>Enter your current password and choose a new one</small>
+            </div>
+          </div>
+
+          <form onSubmit={handlePasswordChange}>
+            <label className="field-label" style={{ marginBottom: 14 }}>
+              <span>Current Password</span>
+              <span className="input-with-action">
+                <input
+                  type={showCurrent ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter your current password"
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showCurrent ? "Hide password" : "Show password"}
+                  onClick={() => setShowCurrent(!showCurrent)}
+                >
+                  {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
+            </label>
+
+            <label className="field-label" style={{ marginBottom: 14 }}>
+              <span>New Password (minimum 6 characters)</span>
+              <span className="input-with-action">
+                <input
+                  type={showNew ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showNew ? "Hide password" : "Show password"}
+                  onClick={() => setShowNew(!showNew)}
+                >
+                  {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
+            </label>
+
+            <label className="field-label" style={{ marginBottom: 18 }}>
+              <span>Confirm New Password</span>
+              <span className="input-with-action">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={6}
+                  required
+                />
+                <button
+                  type="button"
+                  aria-label={showConfirm ? "Hide password" : "Show password"}
+                  onClick={() => setShowConfirm(!showConfirm)}
+                >
+                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </span>
+            </label>
+
+            {error ? (
+              <div className="form-error" style={{ marginBottom: 16 }}>
+                <CircleAlert size={15} /> {error}
+              </div>
+            ) : null}
+
+            {success ? (
+              <div className="form-success" style={{ marginBottom: 16 }}>
+                <CheckCircle2 size={15} /> {success}
+              </div>
+            ) : null}
+
+            <button
+              className="button button-primary"
+              type="submit"
+              disabled={loading}
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              {loading ? <Loader2 className="spin" size={16} /> : <LockKeyhole size={16} />}
+              {loading ? "Updating password..." : "Update Password"}
+            </button>
+          </form>
+        </section>
+
+        {/* Security Profile Card */}
+        <section className="panel" style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ display: "inline-flex", padding: 10, borderRadius: 10, background: "rgba(30, 41, 59, 0.08)", color: "var(--foreground)" }}>
+              <ShieldCheck size={22} />
+            </span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Security Profile</h3>
+              <small style={{ color: "var(--text-muted)" }}>Current credential status and access tier</small>
+            </div>
+          </div>
+
+          <div style={{ background: "var(--card-subtle)", padding: 16, borderRadius: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)" }}>Full Name:</span>
+              <strong style={{ color: "var(--foreground)" }}>{user.name}</strong>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)" }}>Email:</span>
+              <span style={{ fontFamily: "monospace", fontSize: 12 }}>{user.email}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)" }}>Security Tier / Role:</span>
+              <span className="role-pill" style={{ fontWeight: 700 }}>{user.role}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)" }}>Agency / Branch:</span>
+              <span>{user.agency || "Headquarters"}{user.branch ? ` (${user.branch})` : ""}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)" }}>Member Since:</span>
+              <span>{dateTime(user.createdAt)}</span>
+            </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 14, fontSize: 13, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            <p style={{ margin: 0 }}>
+              🛡️ <strong>Password Recommendations:</strong><br />
+              Use at least 8 characters with a mix of uppercase and lowercase letters, numbers, and symbols. Never share your password with anyone.
+            </p>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function StatusBadge({ value }: { value: string }) {
