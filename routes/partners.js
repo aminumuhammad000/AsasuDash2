@@ -51,6 +51,84 @@ router.patch('/:id/status', auth, async (req, res) => {
   }
 });
 
+// Create new admin, staff, or partner (Admin only)
+router.post('/', auth, async (req, res) => {
+  if (!isAdmin(req.user.role)) return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+  try {
+    const { name, email, password, role, agency, branch, phone } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      return res.status(409).json({ error: 'A user with this email address already exists.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const assignedRole = (role || 'admin').toLowerCase();
+
+    const newUser = new User({
+      name,
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: assignedRole,
+      status: 'active',
+      isVerified: true
+    });
+    await newUser.save();
+
+    // Also sync to store.json
+    try {
+      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      if (fs.existsSync(storePath)) {
+        const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+        const mappedRole = (r) => {
+          const upper = String(r || '').toUpperCase();
+          if (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'AUDITOR', 'SUPPORT', 'BRANCH_ADMIN', 'AGENT', 'SUB_DEVELOPER'].includes(upper)) {
+            return upper;
+          }
+          if (upper === 'PARTNER') return 'AGENT';
+          return 'ADMIN';
+        };
+
+        const storeUser = {
+          id: `usr_${Date.now()}`,
+          name,
+          email: normalizedEmail,
+          role: mappedRole(role),
+          agency: agency || (['ADMIN', 'SUPER_ADMIN', 'FINANCE', 'OPERATIONS'].includes(mappedRole(role)) ? 'ASASU Realty' : 'Direct Partner'),
+          branch: branch || undefined,
+          phone: phone || undefined,
+          active: true,
+          createdAt: new Date().toISOString(),
+          passwordHash: hashedPassword
+        };
+        storeData.users = storeData.users || [];
+        if (!storeData.users.some(u => u.email.toLowerCase() === normalizedEmail)) {
+          storeData.users.push(storeUser);
+          fs.writeFileSync(storePath, JSON.stringify(storeData, null, 2));
+        }
+      }
+    } catch (storeErr) {
+      console.warn('Could not sync created user to store.json:', storeErr.message);
+    }
+
+    res.status(201).json({
+      message: `User ${name} created successfully.`,
+      user: {
+        id: newUser._id.toString(),
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Delete partner / user (Admin only)
 router.delete('/:id', auth, async (req, res) => {
   if (!isAdmin(req.user.role)) return res.status(403).json({ error: 'Access denied' });

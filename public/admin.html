@@ -2098,11 +2098,14 @@
 
         <!-- ── ADMIN: AGENTS ── -->
         <div id="sec-admin-partners" class="page-section">
-          <div class="section-header">
+          <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div class="section-title">Partner Management</div>
-              <div class="section-sub">All registered partners and their performance</div>
+              <div class="section-title">User & Partner Management</div>
+              <div class="section-sub">All registered administrators, staff, and partners</div>
             </div>
+            <button class="btn btn-navy" onclick="openCreateUserModal()">
+              ➕ Create Admin / User
+            </button>
           </div>
           <div class="card">
             <div class="card-header">
@@ -2323,6 +2326,56 @@
     </div>
   </div>
 
+  <!-- Create Admin / User Modal -->
+  <div class="modal-overlay" id="createUserModal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <div class="modal-title">Create Admin or User</div>
+        <button class="modal-close" onclick="closeModal('createUserModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="createUserForm" onsubmit="submitCreateUser(event)">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">Full Name *</label>
+            <input type="text" id="newUserName" required placeholder="e.g. Ibrahim Abubakar" class="form-input" style="width:100%;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:13px;">
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label class="form-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">Email Address *</label>
+            <input type="email" id="newUserEmail" required placeholder="user@asasurealty.com" class="form-input" style="width:100%;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:13px;">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+            <div class="form-group">
+              <label class="form-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">Role *</label>
+              <select id="newUserRole" class="form-input" style="width:100%;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:13px;">
+                <option value="admin">Administrator (admin)</option>
+                <option value="super_admin">Super Administrator (super_admin)</option>
+                <option value="partner">Partner (partner)</option>
+                <option value="agent">Agent (agent)</option>
+                <option value="sub_developer">Sub-Developer (sub_developer)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">Phone Number</label>
+              <input type="tel" id="newUserPhone" placeholder="08012345678" class="form-input" style="width:100%;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:13px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:18px;">
+            <label class="form-label" style="font-size:12px;font-weight:600;margin-bottom:4px;display:block;">Initial Password * (min. 6 characters)</label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="newUserPassword" required minlength="6" placeholder="Enter password" class="form-input" style="flex:1;padding:10px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:13px;">
+              <button type="button" class="btn btn-outline btn-sm" onclick="generateNewUserPassword()">Generate</button>
+            </div>
+          </div>
+          <div id="createUserError" style="display:none;color:#e53e3e;font-size:12px;margin-bottom:12px;padding:8px 12px;background:#fff5f5;border-radius:6px;border:1px solid #fed7d7;"></div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button" class="btn btn-outline" onclick="closeModal('createUserModal')">Cancel</button>
+            <button type="submit" id="createUserSubmitBtn" class="btn btn-navy">Create Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Partner Detail Modal -->
   <div class="modal-overlay" id="partnerModal">
     <div class="modal">
@@ -2494,9 +2547,70 @@
       }
     }
 
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.add('open');
+    }
+
     function closeModal(id) {
       const modal = document.getElementById(id);
       if (modal) modal.classList.remove('open');
+    }
+
+    function openCreateUserModal() {
+      document.getElementById('createUserForm').reset();
+      document.getElementById('createUserError').style.display = 'none';
+      document.getElementById('createUserError').textContent = '';
+      openModal('createUserModal');
+    }
+
+    function generateNewUserPassword() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+      let pass = "";
+      for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+      document.getElementById('newUserPassword').value = pass;
+    }
+
+    async function submitCreateUser(e) {
+      e.preventDefault();
+      const name = document.getElementById('newUserName').value.trim();
+      const email = document.getElementById('newUserEmail').value.trim();
+      const role = document.getElementById('newUserRole').value;
+      const phone = document.getElementById('newUserPhone').value.trim();
+      const password = document.getElementById('newUserPassword').value;
+      const errBox = document.getElementById('createUserError');
+      const btn = document.getElementById('createUserSubmitBtn');
+
+      errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, email, role, phone, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || data.message || 'Failed to create user');
+        }
+        closeModal('createUserModal');
+        toast(`User ${name} (${role}) created successfully!`, 'success');
+        if (typeof loadPartners === 'function') {
+          await loadPartners();
+        }
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+      }
     }
 
     async function viewPartner(id) {

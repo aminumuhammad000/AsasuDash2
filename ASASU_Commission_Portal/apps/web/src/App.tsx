@@ -58,6 +58,7 @@ import {
   Trash2,
   UploadCloud,
   UserRound,
+  UserRoundPlus,
   Users,
   WalletCards,
   X,
@@ -75,6 +76,7 @@ import type {
   PaymentAccount,
   PaymentSchedule,
   PaymentScheduleEntry,
+  Role,
   ScheduleImportPreview,
   Ticket,
   TicketPriority,
@@ -2540,6 +2542,61 @@ function PeoplePanel({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [createRole, setCreateRole] = useState<Role>("ADMIN");
+  const [createAgency, setCreateAgency] = useState("");
+  const [createBranch, setCreateBranch] = useState("");
+  const [createPhone, setCreatePhone] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  async function handleCreateUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!createName.trim() || !createEmail.trim() || !createPassword.trim()) {
+      setCreateError("Name, email, and password are required.");
+      return;
+    }
+    if (createPassword.length < 6) {
+      setCreateError("Password must be at least 6 characters.");
+      return;
+    }
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await apiRequest(token, "/users", {
+        method: "POST",
+        body: JSON.stringify({
+          name: createName.trim(),
+          email: createEmail.trim(),
+          password: createPassword,
+          role: createRole,
+          agency: createAgency.trim() || (staffRoles.has(createRole) ? "ASASU Realty" : "Direct Partner"),
+          branch: createBranch.trim() || undefined,
+          phone: createPhone.trim() || undefined
+        })
+      });
+      setShowCreateModal(false);
+      const createdLabel = createName;
+      const createdRole = createRole;
+      setCreateName("");
+      setCreateEmail("");
+      setCreatePassword("");
+      setCreateAgency("");
+      setCreateBranch("");
+      setCreatePhone("");
+      setDeleteSuccess(`User "${createdLabel}" (${createdRole}) has been created successfully.`);
+      setTimeout(() => setDeleteSuccess(null), 5000);
+      await refresh();
+    } catch (err: any) {
+      setCreateError(err?.message || "Failed to create user. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   async function handleDeleteConfirm() {
     if (!userToDelete) return;
     setIsDeleting(true);
@@ -2568,9 +2625,18 @@ function PeoplePanel({
           <h2>People, roles, and partner status.</h2>
           <p>Keep every user attached to the right workspace, branch, and permission level.</p>
         </div>
-        <button className="button button-primary">
-          <UserRound size={16} /> Invite partner
-        </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={() => {
+              setShowCreateModal(true);
+              setCreateError(null);
+            }}
+          >
+            <UserRoundPlus size={16} /> Create User / Admin
+          </button>
+        ) : null}
       </section>
 
       {deleteSuccess ? (
@@ -2756,6 +2822,174 @@ function PeoplePanel({
                 {isDeleting ? "Deleting user..." : "Yes, Delete User"}
               </button>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showCreateModal ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !isCreating) {
+              setShowCreateModal(false);
+            }
+          }}
+        >
+          <div className="modal-card" style={{ maxWidth: "520px" }}>
+            <div className="modal-heading">
+              <span className="modal-icon blue">
+                <UserRoundPlus size={20} />
+              </span>
+              <div>
+                <span>Identity & access</span>
+                <h3>Create User or Admin</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isCreating && setShowCreateModal(false)}
+                disabled={isCreating}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} style={{ display: "grid", gap: "14px", marginTop: "16px" }}>
+              <label className="field-label">
+                <span>Full Name *</span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Ibrahim Abubakar"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  disabled={isCreating}
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Email Address *</span>
+                <input
+                  type="email"
+                  required
+                  placeholder="user@asasurealty.com"
+                  value={createEmail}
+                  onChange={(e) => setCreateEmail(e.target.value)}
+                  disabled={isCreating}
+                />
+              </label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label className="field-label">
+                  <span>Role *</span>
+                  <select
+                    value={createRole}
+                    onChange={(e) => setCreateRole(e.target.value as Role)}
+                    disabled={isCreating}
+                  >
+                    <option value="ADMIN">Administrator (ADMIN)</option>
+                    <option value="SUPER_ADMIN">Super Administrator (SUPER_ADMIN)</option>
+                    <option value="OPERATIONS">Operations Manager (OPERATIONS)</option>
+                    <option value="FINANCE">Finance Officer (FINANCE)</option>
+                    <option value="BRANCH_ADMIN">Branch Admin (BRANCH_ADMIN)</option>
+                    <option value="SUPPORT">Support Officer (SUPPORT)</option>
+                    <option value="AUDITOR">Auditor (AUDITOR)</option>
+                    <option value="AGENT">Partner / Agent (AGENT)</option>
+                    <option value="SUB_DEVELOPER">Sub-Developer (SUB_DEVELOPER)</option>
+                  </select>
+                </label>
+
+                <label className="field-label">
+                  <span>Branch / Location</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Kano, Abuja"
+                    value={createBranch}
+                    onChange={(e) => setCreateBranch(e.target.value)}
+                    disabled={isCreating}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label className="field-label">
+                  <span>Agency / Department</span>
+                  <input
+                    type="text"
+                    placeholder={staffRoles.has(createRole) ? "ASASU Realty" : "Direct Partner"}
+                    value={createAgency}
+                    onChange={(e) => setCreateAgency(e.target.value)}
+                    disabled={isCreating}
+                  />
+                </label>
+
+                <label className="field-label">
+                  <span>Phone Number</span>
+                  <input
+                    type="tel"
+                    placeholder="08012345678"
+                    value={createPhone}
+                    onChange={(e) => setCreatePhone(e.target.value)}
+                    disabled={isCreating}
+                  />
+                </label>
+              </div>
+
+              <label className="field-label">
+                <span>Initial Password * (min. 6 characters)</span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    type="text"
+                    required
+                    minLength={6}
+                    placeholder="Enter password"
+                    value={createPassword}
+                    onChange={(e) => setCreatePassword(e.target.value)}
+                    disabled={isCreating}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    style={{ whiteSpace: "nowrap" }}
+                    disabled={isCreating}
+                    onClick={() => {
+                      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+                      let pass = "";
+                      for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                      setCreatePassword(pass);
+                    }}
+                  >
+                    Generate
+                  </button>
+                </div>
+              </label>
+
+              {createError ? (
+                <div className="form-error">
+                  <CircleAlert size={14} />
+                  <span>{createError}</span>
+                </div>
+              ) : null}
+
+              <div className="modal-actions" style={{ marginTop: "8px" }}>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={isCreating}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="button button-primary"
+                  disabled={isCreating}
+                >
+                  {isCreating ? <Loader2 className="spin" size={15} /> : <UserRoundPlus size={15} />}
+                  <span>{isCreating ? "Creating..." : "Create Account"}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       ) : null}

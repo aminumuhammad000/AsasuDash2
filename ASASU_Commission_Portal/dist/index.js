@@ -1539,8 +1539,81 @@ var deleteUserHandler = async (request, response) => {
     userId: targetId
   });
 };
+var createUserHandler = async (request, response) => {
+  const schema = z.object({
+    name: z.string().trim().min(2),
+    email: z.string().email(),
+    password: z.string().min(6),
+    role: z.enum([
+      "SUPER_ADMIN",
+      "ADMIN",
+      "FINANCE",
+      "OPERATIONS",
+      "AUDITOR",
+      "SUPPORT",
+      "BRANCH_ADMIN",
+      "AGENT",
+      "SUB_DEVELOPER"
+    ]),
+    agency: z.string().trim().optional(),
+    branch: z.string().trim().optional(),
+    phone: z.string().trim().optional()
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: "Invalid user details provided." });
+  }
+  const { name, email, password, role, agency, branch, phone } = parsed.data;
+  const normalizedEmail = email.toLowerCase().trim();
+  let createdUser;
+  await store.mutate(async (data) => {
+    if (data.users.some((u) => u.email.toLowerCase() === normalizedEmail)) {
+      return;
+    }
+    const hashedPassword = await hashPassword(password);
+    createdUser = {
+      id: `usr_${nanoid2(10)}`,
+      name,
+      email: normalizedEmail,
+      role,
+      agency: agency || (isStaffRole(role) ? "ASASU Realty" : "Direct Partner"),
+      branch: branch || void 0,
+      phone: phone || void 0,
+      active: true,
+      createdAt: nowIso(),
+      passwordHash: hashedPassword
+    };
+    data.users.push(createdUser);
+    logAction(data, request, "CREATE_USER", "USER", createdUser.id, `Created ${role} user ${name} (${normalizedEmail})`);
+  });
+  if (!createdUser) {
+    return void response.status(409).json({ message: "A user with this email address already exists." });
+  }
+  try {
+    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUser = mongoose.models.User || mongoose.model("User");
+      const existing = await MongoUser.findOne({ email: normalizedEmail });
+      if (!existing) {
+        await MongoUser.create({
+          name,
+          email: normalizedEmail,
+          password: createdUser.passwordHash,
+          role: role.toLowerCase(),
+          status: "active",
+          isVerified: true
+        });
+      }
+    }
+  } catch (mongoErr) {
+    console.warn("MongoDB user sync warning:", mongoErr);
+  }
+  response.status(201).json(publicUser(createdUser));
+};
 app.delete("/api/users/:userId", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.delete("/api/partners/:id", requireAuth, requireRole(...userManagers), deleteUserHandler);
+app.post("/api/users", requireAuth, requireRole(...userManagers), createUserHandler);
+app.post("/api/partners", requireAuth, requireRole(...userManagers), createUserHandler);
 app.get("/api/dashboard", requireAuth, async (request, response) => {
   const data = await store.read();
   const user = request.user;
