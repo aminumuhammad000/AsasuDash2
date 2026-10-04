@@ -1637,32 +1637,45 @@ function ClaimWorkspace({
         <div className="basket-summary"><div><span>Clients</span><strong>{selectedRows.length}</strong></div><div><span>Eligible amount</span><strong>{currency(selectedRows.reduce((sum, entry) => sum + entry.rsaAmount, 0))}</strong></div><div className="basket-total"><span>Estimated commission</span><strong>{currency(commissionTotal)}</strong></div></div>
 
         {/* Payout Destination Account Details */}
-        <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 12, margin: "12px 0" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--foreground)", marginBottom: 4 }}>
+        <div style={{ background: "var(--panel-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, margin: "12px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
             <CreditCard size={14} /> Payout Destination
           </div>
           {payload.user.paymentAccount?.accountNumber ? (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.4 }}>
-              <strong style={{ color: "var(--foreground)" }}>{payload.user.paymentAccount.bankName}</strong><br />
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.4 }}>
+              <strong style={{ color: "var(--text)" }}>{payload.user.paymentAccount.bankName}</strong><br />
               <span>{payload.user.paymentAccount.accountNumber} ({payload.user.paymentAccount.accountName})</span>
             </div>
           ) : (
-            <div style={{ fontSize: 11, color: "var(--warning)", lineHeight: 1.4 }}>
+            <div style={{ fontSize: 11, color: "var(--amber)", lineHeight: 1.4 }}>
               ⚠️ No payment account saved yet. Please configure your bank details in Security & Password settings.
             </div>
           )}
         </div>
 
         {/* Optional Note for Admin */}
-        <div style={{ marginBottom: 12 }}>
-          <label className="field-label" style={{ marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>Note for Admin <em>(Optional)</em></span>
+        <div style={{ background: "var(--panel-soft)", border: "1px solid var(--border)", borderRadius: 8, padding: 12, margin: "12px 0" }}>
+          <label className="field-label" style={{ margin: 0, gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
+              <MessageSquare size={14} /> Note for Admin <em style={{ fontWeight: 400, color: "var(--text-tertiary)" }}>(Optional)</em>
+            </span>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add any note or instruction for admin…"
-              style={{ width: "100%", fontSize: 12, borderRadius: 6, resize: "vertical", padding: 8 }}
+              style={{
+                width: "100%",
+                fontSize: 12,
+                borderRadius: 6,
+                resize: "vertical",
+                padding: "8px 10px",
+                color: "var(--text)",
+                background: "var(--panel)",
+                border: "1px solid var(--border-strong)",
+                outline: "none",
+                lineHeight: 1.5
+              }}
             />
           </label>
         </div>
@@ -1786,8 +1799,8 @@ function ClaimsPanel({ payload, token, refresh }: { payload: DashboardPayload; t
                     <h4>Partner note</h4>
                     <small>Submitted with claim</small>
                   </div>
-                  <div style={{ padding: "12px 14px", background: "var(--panel-muted, #f8fafc)", borderRadius: "10px", border: "1px solid var(--border)", fontSize: "13px", lineHeight: "1.5", color: "var(--text)" }}>
-                    <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{selectedClaim.notes}</p>
+                  <div style={{ padding: "12px 14px", background: "var(--panel-soft)", borderRadius: "10px", border: "1px solid var(--border)", fontSize: "13px", lineHeight: "1.5", color: "var(--text)" }}>
+                    <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--text)" }}>{selectedClaim.notes}</p>
                   </div>
                 </div>
               ) : null}
@@ -1808,7 +1821,7 @@ function ClaimsPanel({ payload, token, refresh }: { payload: DashboardPayload; t
                   </div>
                 )}
               </div>
-              {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount} title={selectedPaymentAccount ? "Mark this claim as paid" : "The partner must add a payment account first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
+              {staff ? <div className="drawer-section"><label className="field-label"><span>Decision note <em>Optional</em></span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context for the partner and audit trail…" style={{ color: "var(--text)", background: "var(--panel)", border: "1px solid var(--border-strong)" }} /></label>{error ? <div className="form-error"><CircleAlert size={14} />{error}</div> : null}<div className="drawer-actions">{["PENDING_VERIFICATION", "NEEDS_REVIEW", "INFO_REQUESTED"].includes(selectedClaim.status) ? <><button className="button button-success" onClick={() => action(approvedItems.size === selectedClaim.items.length ? "approve" : "partial_approve")} disabled={Boolean(actionLoading)}>{actionLoading ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />} {approvedItems.size === selectedClaim.items.length ? "Approve claim" : `Approve ${approvedItems.size} selected`}</button><button className="button button-secondary" onClick={() => action("request_info")} disabled={Boolean(actionLoading)}><MessageSquare size={15} /> Request info</button><button className="button button-danger" onClick={() => action("reject")} disabled={Boolean(actionLoading)}>Reject</button></> : null}{canMakePayment && ["APPROVED", "PARTIALLY_APPROVED"].includes(selectedClaim.status) ? <button className="button button-primary" onClick={() => action("paid")} disabled={Boolean(actionLoading) || !selectedPaymentAccount} title={selectedPaymentAccount ? "Mark this claim as paid" : "The partner must add a payment account first"}><Banknote size={16} /> Mark as paid</button> : null}</div></div> : null}
             </aside>
           </div>
         </ModalPortal>

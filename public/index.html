@@ -3082,7 +3082,7 @@ async function viewClaim(ref) {
     </div>
     <div style="margin-top:20px;padding:15px;background:#f9f9f9;border-radius:8px">
       <div style="font-size:11px;color:#888;text-transform:uppercase;margin-bottom:8px">Notes from Partner</div>
-      <div style="font-size:13px">${claim.notes || 'No notes provided.'}</div>
+      <div style="font-size:13px;color:var(--navy);">${claim.notes || 'No notes provided.'}</div>
     </div>
     ${claim.file && claim.file !== 'no-file' ? `
     <div style="margin-top:20px">
