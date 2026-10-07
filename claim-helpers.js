@@ -8,7 +8,7 @@ function goStep(step) {
 
   // Show target step
   const target = document.getElementById('submitStep' + step);
-  if (target) ltarget.style.disp lay = 'block';
+  if (target) target.style.display = 'block';
 
   // Update step indicators
   for (let i = 1; i <= 3; i++) {

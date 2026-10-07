@@ -1056,9 +1056,17 @@ var JsonStore = class {
 var require2 = createRequire(import.meta.url);
 dotenv.config();
 var moduleRoot = path2.dirname(fileURLToPath2(import.meta.url));
-var rootEnvPath = path2.resolve(moduleRoot, "../../../../.env");
-if (!process.env.CLOUDINARY_API_KEY && fs2.existsSync(rootEnvPath)) {
-  dotenv.config({ path: rootEnvPath });
+var envCandidates = [
+  path2.resolve(moduleRoot, "../../../../.env"),
+  path2.resolve(moduleRoot, "../../../.env"),
+  path2.resolve(moduleRoot, "../../.env"),
+  path2.resolve(process.cwd(), ".env"),
+  path2.resolve(process.cwd(), "../../.env")
+];
+for (const envPath of envCandidates) {
+  if (fs2.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
 }
 function loadEmailUtil() {
   const possiblePaths = [
@@ -1071,13 +1079,14 @@ function loadEmailUtil() {
   for (const emailPath of possiblePaths) {
     if (fs2.existsSync(emailPath)) {
       try {
-        return require2(emailPath);
+        const mod = require2(emailPath);
+        return typeof mod === "function" ? mod : mod.sendEmail || mod.default;
       } catch (err) {
         console.warn("Failed loading email util from", emailPath, err);
       }
     }
   }
-  return async (to, subject, text) => {
+  return async (to, subject, text, html) => {
     console.log(`[Email util fallback] To: ${to}, Subject: ${subject}`);
   };
 }
@@ -1714,7 +1723,12 @@ app.post("/api/payment-schedules/preview", requireAuth, requireRole(...scheduleM
 async function notifyPartnersOfNewSchedule(schedule, data) {
   const recipients = [];
   const seenEmails = /* @__PURE__ */ new Set();
-  for (const user of data.users.filter((item) => item.active && (isAgentRole(item.role) || item.role === "PARTNER"))) {
+  const isEligibleRole = (r) => {
+    if (!r) return false;
+    const norm = String(r).toUpperCase();
+    return norm === "PARTNER" || norm === "AGENT" || norm === "SUB_DEVELOPER" || norm === "SUBDEVELOPER";
+  };
+  for (const user of data.users.filter((item) => item.active && isEligibleRole(item.role))) {
     const emailNorm = user.email.toLowerCase().trim();
     if (!seenEmails.has(emailNorm)) {
       seenEmails.add(emailNorm);
@@ -1727,8 +1741,11 @@ async function notifyPartnersOfNewSchedule(schedule, data) {
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const MongoUserModel = mongoose.models.User || mongoose.model("User");
       const mongoPartners = await MongoUserModel.find({
-        role: { $in: ["partner", "agent", "sub_developer", "PARTNER", "AGENT", "SUB_DEVELOPER"] },
-        status: { $ne: "disabled" }
+        $or: [
+          { role: { $in: ["partner", "agent", "sub_developer", "PARTNER", "AGENT", "SUB_DEVELOPER"] } },
+          { role: { $regex: /^(partner|agent|sub_developer|sub-developer)$/i } }
+        ],
+        status: { $nin: ["disabled", "inactive"] }
       });
       for (const mp of mongoPartners) {
         if (mp.email) {
@@ -1743,34 +1760,39 @@ async function notifyPartnersOfNewSchedule(schedule, data) {
   } catch (err) {
     console.warn("MongoDB partner lookup warning:", err);
   }
+  console.log(`[Schedule Notification] Sending notifications to ${recipients.length} partner(s) for schedule: ${schedule.branch} (${schedule.paymentDate})`);
   for (const recipient of recipients) {
-    void sendEmail(
-      recipient.email,
-      `New payment schedule published: ${schedule.branch} (${schedule.paymentDate})`,
-      `Hello ${recipient.name},
+    try {
+      await sendEmail(
+        recipient.email,
+        `New payment schedule published: ${schedule.branch} (${schedule.paymentDate})`,
+        `Hello ${recipient.name},
 
 A new payment schedule for ${schedule.branch} (${schedule.paymentDate}) has been published with ${schedule.entryCount} clients.
 
 Log in to the portal to view and claim your clients.`,
-      `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
-          <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Payment Schedule Published</h2>
-          <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal \xB7 Notification</span>
-        </div>
-        <p style="color: #334155; font-size: 15px;">Hello <strong>${recipient.name}</strong>,</p>
-        <p style="color: #334155; font-size: 14px; line-height: 1.5;">A new payment schedule has just been uploaded and published by the operations team:</p>
-        <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.title || schedule.scheduleNumber}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Branch:</strong> ${schedule.branch}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Payment Date:</strong> ${schedule.paymentDate}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Total Clients:</strong> ${schedule.entryCount}</p>
-        </div>
-        <p style="color: #334155; font-size: 14px; line-height: 1.5;">Log in now to search your clients and submit your commission claims.</p>
-        <div style="text-align: center; margin-top: 20px;">
-          <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: 700; text-decoration: none; border-radius: 8px;">Claim Your Clients \u2192</a>
-        </div>
-      </div>`
-    );
+        `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
+            <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Payment Schedule Published</h2>
+            <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal \xB7 Notification</span>
+          </div>
+          <p style="color: #334155; font-size: 15px;">Hello <strong>${recipient.name}</strong>,</p>
+          <p style="color: #334155; font-size: 14px; line-height: 1.5;">A new payment schedule has just been uploaded and published by the operations team:</p>
+          <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.title || schedule.scheduleNumber}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Branch:</strong> ${schedule.branch}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Payment Date:</strong> ${schedule.paymentDate}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Total Clients:</strong> ${schedule.entryCount}</p>
+          </div>
+          <p style="color: #334155; font-size: 14px; line-height: 1.5;">Log in now to search your clients and submit your commission claims.</p>
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: 700; text-decoration: none; border-radius: 8px;">Claim Your Clients \u2192</a>
+          </div>
+        </div>`
+      );
+    } catch (err) {
+      console.error(`[Schedule Notification Error] Could not send email to ${recipient.email}:`, err);
+    }
   }
 }
 app.post("/api/payment-schedules/upload", requireAuth, requireRole(...scheduleManagers), upload.single("file"), async (request, response) => {
@@ -1924,10 +1946,11 @@ async function notifyAdminsOfNewClaim(claim, submitter, schedule, storeData) {
   const paymentAccount = claim.paymentAccount || submitter.paymentAccount;
   const submitterPhone = claim.submitterPhone || submitter.phone || "N/A";
   for (const adminEmail of adminEmails) {
-    void sendEmail(
-      adminEmail,
-      `New Commission Claim Submitted: ${claim.reference} by ${submitter.name}`,
-      `A new commission claim (${claim.reference}) has been submitted by ${submitter.name} (${claim.submitterRole}) for ${claim.items.length} clients.
+    try {
+      await sendEmail(
+        adminEmail,
+        `New Commission Claim Submitted: ${claim.reference} by ${submitter.name}`,
+        `A new commission claim (${claim.reference}) has been submitted by ${submitter.name} (${claim.submitterRole}) for ${claim.items.length} clients.
 
 Total Payable: \u20A6${claim.totalPayable.toLocaleString("en-NG")}
 Schedule: ${schedule.branch} (${schedule.paymentDate})
@@ -1937,44 +1960,47 @@ Bank: ${paymentAccount ? `${paymentAccount.bankName} - ${paymentAccount.accountN
 Partner Note: ${claim.notes}` : ""}
 
 Please log in to review and verify this claim.`,
-      `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
-          <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Commission Claim Submitted</h2>
-          <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal \xB7 Admin Alert</span>
-        </div>
-        <p style="color: #334155; font-size: 14px;"><strong>${submitter.name}</strong> (${claim.submitterRole}) has submitted a new commission claim: <strong style="color: #1a1f3c;">${claim.reference}</strong>.</p>
-        
-        <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.branch} (${schedule.paymentDate})</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Number of Clients:</strong> ${claim.items.length}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Total Payable:</strong> \u20A6${claim.totalPayable.toLocaleString("en-NG")}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Email:</strong> ${submitter.email}</p>
-          <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Phone:</strong> ${submitterPhone}</p>
-        </div>
+        `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
+            <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Commission Claim Submitted</h2>
+            <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal \xB7 Admin Alert</span>
+          </div>
+          <p style="color: #334155; font-size: 14px;"><strong>${submitter.name}</strong> (${claim.submitterRole}) has submitted a new commission claim: <strong style="color: #1a1f3c;">${claim.reference}</strong>.</p>
+          
+          <div style="background: #f8fafc; border-radius: 8px; padding: 14px; margin: 16px 0;">
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Schedule:</strong> ${schedule.branch} (${schedule.paymentDate})</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Number of Clients:</strong> ${claim.items.length}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Total Payable:</strong> \u20A6${claim.totalPayable.toLocaleString("en-NG")}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Email:</strong> ${submitter.email}</p>
+            <p style="margin: 4px 0; font-size: 13px;"><strong>Partner Phone:</strong> ${submitterPhone}</p>
+          </div>
 
-        <div style="background: #fff8e6; border: 1px solid #e8b84b; border-radius: 8px; padding: 14px; margin: 16px 0;">
-          <h4 style="margin: 0 0 8px 0; color: #1a1f3c; font-size: 14px;">\u{1F4B3} Partner Account Details:</h4>
-          ${paymentAccount ? `
-            <p style="margin: 4px 0; font-size: 13px;"><strong>Bank Name:</strong> ${paymentAccount.bankName}</p>
-            <p style="margin: 4px 0; font-size: 13px;"><strong>Account Name:</strong> ${paymentAccount.accountName}</p>
-            <p style="margin: 4px 0; font-size: 13px;"><strong>Account Number:</strong> ${paymentAccount.accountNumber}</p>
-          ` : `
-            <p style="margin: 4px 0; font-size: 13px; color: #b45309;">\u26A0\uFE0F No payment account details configured yet by this partner.</p>
-          `}
-        </div>
+          <div style="background: #fff8e6; border: 1px solid #e8b84b; border-radius: 8px; padding: 14px; margin: 16px 0;">
+            <h4 style="margin: 0 0 8px 0; color: #1a1f3c; font-size: 14px;">\u{1F4B3} Partner Account Details:</h4>
+            ${paymentAccount ? `
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Bank Name:</strong> ${paymentAccount.bankName}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Account Name:</strong> ${paymentAccount.accountName}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Account Number:</strong> ${paymentAccount.accountNumber}</p>
+            ` : `
+              <p style="margin: 4px 0; font-size: 13px; color: #b45309;">\u26A0\uFE0F No payment account details configured yet by this partner.</p>
+            `}
+          </div>
 
-        ${claim.notes ? `
-        <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 12px; margin: 16px 0;">
-          <strong style="color: #1e40af; font-size: 13px;">\u{1F4DD} Partner Note:</strong>
-          <p style="margin: 6px 0 0 0; color: #1e3a8a; font-size: 13px; font-style: italic;">\u201C${claim.notes}\u201D</p>
-        </div>
-        ` : ""}
+          ${claim.notes ? `
+          <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 12px; margin: 16px 0;">
+            <strong style="color: #1e40af; font-size: 13px;">\u{1F4DD} Partner Note:</strong>
+            <p style="margin: 6px 0 0 0; color: #1e3a8a; font-size: 13px; font-style: italic;">\u201C${claim.notes}\u201D</p>
+          </div>
+          ` : ""}
 
-        <div style="text-align: center; margin-top: 24px;">
-          <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px;">Open Admin Portal to Review \u2192</a>
-        </div>
-      </div>`
-    );
+          <div style="text-align: center; margin-top: 24px;">
+            <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px;">Open Admin Portal to Review \u2192</a>
+          </div>
+        </div>`
+      );
+    } catch (err) {
+      console.error(`[Admin Notification Error] Could not send email to admin ${adminEmail}:`, err);
+    }
   }
 }
 app.post("/api/claims", requireAuth, async (request, response) => {

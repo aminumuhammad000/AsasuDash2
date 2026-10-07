@@ -1,12 +1,21 @@
 const Setting = require('../models/Setting');
 const sendEmail = require('./email');
 
+const mongoose = require('mongoose');
+
 /**
  * Sends a notification email to all admin notification addresses saved in settings
  */
 const notifyAdmins = async (subject, text, html) => {
   try {
-    const setting = await Setting.findOne({ key: 'admin_notification_emails' });
+    let setting = null;
+    try {
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        setting = await Setting.findOne({ key: 'admin_notification_emails' });
+      }
+    } catch (dbErr) {
+      console.warn('[Notification Warning] Could not query Setting from MongoDB:', dbErr.message);
+    }
     
     let recipientList = process.env.ADMIN_EMAIL || 'admin@asasurealty.com';
     

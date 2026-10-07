@@ -210,9 +210,21 @@ const auth = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 
+const getStoreFilePath = () => {
+  const candidates = [
+    path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json'),
+    path.resolve(__dirname, '../ASASU_Commission_Portal/apps/api/data/store.json'),
+    path.resolve(__dirname, '../data/store.json')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+};
+
 const syncStorePassword = (email, hashedPassword) => {
   try {
-    const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+    const storePath = getStoreFilePath();
     if (fs.existsSync(storePath)) {
       const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
       const u = storeData.users?.find(item => item.email?.toLowerCase() === email.toLowerCase());
@@ -230,7 +242,7 @@ const syncStorePassword = (email, hashedPassword) => {
 
 const syncStoreOtp = (email, otp, otpExpires) => {
   try {
-    const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+    const storePath = getStoreFilePath();
     if (fs.existsSync(storePath)) {
       const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
       const u = storeData.users?.find(item => item.email?.toLowerCase() === email.toLowerCase());
@@ -252,12 +264,20 @@ router.post('/forgot-password', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Please enter your email address' });
 
     const emailNorm = email.toLowerCase().trim();
-    const user = await User.findOne({ email: emailNorm });
+    let user = null;
+    try {
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState === 1) {
+        user = await User.findOne({ email: emailNorm });
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB lookup skipped in forgot-password:', dbErr.message);
+    }
 
-    // Also check store.json if user not found in Mongo
+    // Also check store.json
     let storeUser = null;
     try {
-      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      const storePath = getStoreFilePath();
       if (fs.existsSync(storePath)) {
         const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
         storeUser = storeData.users?.find(u => u.email?.toLowerCase() === emailNorm);
@@ -272,9 +292,13 @@ router.post('/forgot-password', async (req, res) => {
     const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
     if (user) {
-      user.otp = otp;
-      user.otpExpires = otpExpires;
-      await user.save();
+      try {
+        user.otp = otp;
+        user.otpExpires = otpExpires;
+        await user.save();
+      } catch (saveErr) {
+        console.warn('MongoDB OTP save warning:', saveErr.message);
+      }
     }
 
     syncStoreOtp(emailNorm, otp, otpExpires.toISOString());
@@ -300,6 +324,7 @@ router.post('/forgot-password', async (req, res) => {
 
     res.json({ ok: true, message: `A 6-digit verification code has been sent to ${emailNorm}.` });
   } catch (err) {
+    console.error('Forgot password error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -316,11 +341,19 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const emailNorm = email.toLowerCase().trim();
-    const user = await User.findOne({ email: emailNorm });
+    let user = null;
+    try {
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState === 1) {
+        user = await User.findOne({ email: emailNorm });
+      }
+    } catch (dbErr) {
+      console.warn('MongoDB lookup skipped in reset-password:', dbErr.message);
+    }
 
     let storeUser = null;
     let storeData = null;
-    const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+    const storePath = getStoreFilePath();
     try {
       if (fs.existsSync(storePath)) {
         storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
@@ -346,18 +379,24 @@ router.post('/reset-password', async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     if (user) {
-      user.password = hashedPassword;
-      user.otp = undefined;
-      user.otpExpires = undefined;
-      await user.save();
+      try {
+        user.password = hashedPassword;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+      } catch (saveErr) {
+        console.warn('MongoDB password save warning:', saveErr.message);
+      }
     }
 
     syncStorePassword(emailNorm, hashedPassword);
 
     res.json({ ok: true, message: 'Your password has been successfully reset. You can now log in.' });
   } catch (err) {
+    console.error('Reset password error:', err);
     res.status(500).json({ error: err.message });
   }
+});
 });
 
 // Change Password
