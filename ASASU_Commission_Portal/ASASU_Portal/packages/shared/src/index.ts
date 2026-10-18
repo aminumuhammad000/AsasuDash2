@@ -44,6 +44,7 @@ export interface User {
   phone?: string;
   paymentAccount?: PaymentAccount;
   active: boolean;
+  status?: "pending_approval" | "active" | "disabled";
   createdAt: string;
 }
 
@@ -260,6 +261,7 @@ export interface DashboardMetrics {
   openDisputes?: number;
   averageApprovalHours?: number;
   paidToday?: number;
+  pendingUsers?: number;
 }
 
 export interface TrendPoint {

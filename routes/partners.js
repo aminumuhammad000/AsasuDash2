@@ -34,8 +34,33 @@ router.patch('/:id/status', auth, async (req, res) => {
   if (!isAdmin(req.user.role)) return res.status(403).json({ error: 'Access denied' });
   try {
     const { status } = req.body;
-    const partner = await User.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    let partner = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      partner = await User.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    } else {
+      partner = await User.findOneAndUpdate(
+        { $or: [{ _id: req.params.id }, { email: req.params.id.toLowerCase() }] },
+        { status },
+        { new: true }
+      ).catch(() => null);
+    }
     
+    // Also sync to store.json
+    try {
+      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      if (fs.existsSync(storePath)) {
+        const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+        const u = storeData.users?.find(item => item.id === req.params.id || (partner && item.email?.toLowerCase() === partner.email?.toLowerCase()));
+        if (u) {
+          u.status = status;
+          u.active = (status === 'active');
+          fs.writeFileSync(storePath, JSON.stringify(storeData, null, 2));
+        }
+      }
+    } catch (storeErr) {
+      console.warn('Could not sync user status update to store.json:', storeErr.message);
+    }
+
     // Notify partner via Socket.io if possible
     const io = req.app.get('socketio');
     if (io && partner) {
@@ -45,7 +70,7 @@ router.patch('/:id/status', auth, async (req, res) => {
       });
     }
 
-    res.json(partner);
+    res.json(partner || { ok: true, status });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

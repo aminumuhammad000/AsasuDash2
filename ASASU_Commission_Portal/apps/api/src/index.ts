@@ -274,7 +274,7 @@ app.post("/api/auth/register", async (request, response) => {
   const { name, email, password, agency, branch, phone, role } = parsed.data;
   const data = await store.read();
   const normalizedEmail = email.toLowerCase();
-  if (data.users.some((item) => item.email.toLowerCase() === normalizedEmail && item.active)) {
+  if (data.users.some((item) => item.email.toLowerCase() === normalizedEmail)) {
     return void response.status(409).json({ message: "An account with this email already exists." });
   }
 
@@ -286,7 +286,8 @@ app.post("/api/auth/register", async (request, response) => {
     agency,
     branch: branch || undefined,
     phone: phone || undefined,
-    active: true,
+    active: false,
+    status: "pending_approval",
     createdAt: nowIso(),
     passwordHash: await hashPassword(password)
   } satisfies import("./domain.js").StoredUser;
@@ -299,13 +300,52 @@ app.post("/api/auth/register", async (request, response) => {
     action: "REGISTER",
     entityType: "AUTH",
     entityId: user.id,
-    detail: `Created ${role.toLowerCase()} account`,
+    detail: `Registered ${role.toLowerCase()} account (awaiting admin approval)`,
     ipAddress: request.ip,
     userAgent: request.get("user-agent"),
     createdAt: nowIso()
   });
+
+  // Notify admins of new partner registration awaiting approval
+  for (const adminUser of data.users.filter((u) => isStaffRole(u.role))) {
+    data.notifications.push({
+      id: `notif_${nanoid(10)}`,
+      userId: adminUser.id,
+      title: "New Registration Awaiting Approval",
+      body: `${name} (${normalizedEmail}) has registered as a ${role.toLowerCase()} and is awaiting your approval.`,
+      read: false,
+      createdAt: nowIso()
+    });
+  }
+
   await store.write(data);
-  response.json(authResponse(user));
+
+  // Sync to MongoDB if available
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUser: any = mongoose.models.User || (mongoose as any).model("User");
+      const existing = await MongoUser.findOne({ email: normalizedEmail });
+      if (!existing) {
+        await MongoUser.create({
+          name,
+          email: normalizedEmail,
+          password: user.passwordHash,
+          role: role.toLowerCase(),
+          status: "pending_approval",
+          isVerified: true
+        });
+      }
+    }
+  } catch (mongoErr) {
+    console.warn("MongoDB registration sync warning:", mongoErr);
+  }
+
+  response.status(201).json({
+    ok: true,
+    pendingApproval: true,
+    message: "Registration successful! Your account is awaiting admin approval before you can log in."
+  });
 });
 
 const handleLogin = async (request: Request, response: Response, forcedPortal?: "admin" | "user") => {
@@ -319,9 +359,21 @@ const handleLogin = async (request: Request, response: Response, forcedPortal?: 
   if (!parsed.success) return void response.status(400).json({ message: "A valid email and password are required" });
 
   const data = await store.read();
-  const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase() && item.active);
+  const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase());
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     return void response.status(401).json({ message: "Invalid login credentials" });
+  }
+
+  if (user.status === "pending_approval" || (!user.active && user.status !== "disabled")) {
+    return void response.status(403).json({
+      message: "Your account is awaiting admin approval. Please contact the administrator or check back later."
+    });
+  }
+
+  if (!user.active || user.status === "disabled") {
+    return void response.status(403).json({
+      message: "Your account has been disabled. Please contact the administrator."
+    });
   }
 
   const portalType = forcedPortal || parsed.data.portal;
@@ -708,10 +760,98 @@ const createUserHandler = async (request: Request, response: Response) => {
   response.status(201).json(publicUser(createdUser));
 };
 
+const updateUserStatusHandler = async (request: Request, response: Response) => {
+  const targetId = String(request.params.userId || request.params.id || "");
+  const schema = z.object({
+    status: z.enum(["active", "disabled", "pending_approval"]).optional(),
+    active: z.boolean().optional()
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: "Invalid status provided. Must be 'active', 'disabled', or 'pending_approval'." });
+  }
+
+  let newStatus: "active" | "disabled" | "pending_approval";
+  let newActive: boolean;
+
+  if (parsed.data.status) {
+    newStatus = parsed.data.status;
+    newActive = newStatus === "active";
+  } else if (typeof parsed.data.active === "boolean") {
+    newActive = parsed.data.active;
+    newStatus = newActive ? "active" : "disabled";
+  } else {
+    return void response.status(400).json({ message: "Please specify status or active" });
+  }
+
+  let updatedUser: StoredUser | undefined;
+
+  await store.mutate((data) => {
+    const user = data.users.find((item) => item.id === targetId || (item as any)._id === targetId || item.email.toLowerCase() === targetId.toLowerCase());
+    if (!user) return;
+
+    user.status = newStatus;
+    user.active = newActive;
+    updatedUser = user;
+
+    if (newStatus === "active") {
+      data.notifications.push({
+        id: `notif_${nanoid(10)}`,
+        userId: user.id,
+        title: "Account Approved",
+        body: "Your ASASU partner account has been approved by an administrator. You now have full access to submit and manage claims.",
+        read: false,
+        createdAt: nowIso()
+      });
+    }
+
+    logAction(
+      data,
+      request,
+      "USER_STATUS_UPDATED",
+      "USER",
+      user.id,
+      `Admin ${request.user!.name} updated status of ${user.name} (${user.email}) to ${newStatus}.`
+    );
+  });
+
+  if (!updatedUser) {
+    return void response.status(404).json({ message: "User not found" });
+  }
+
+  // Also sync with MongoDB if connected
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUser: any = mongoose.models.User || (mongoose as any).model("User");
+      if (MongoUser) {
+        if (mongoose.Types.ObjectId.isValid(targetId)) {
+          await MongoUser.findByIdAndUpdate(targetId, { status: newStatus });
+        } else {
+          await MongoUser.updateOne(
+            { $or: [{ _id: targetId }, { email: (updatedUser as any).email.toLowerCase() }] },
+            { status: newStatus }
+          );
+        }
+      }
+    }
+  } catch (mongoErr) {
+    console.warn("MongoDB status sync warning:", mongoErr);
+  }
+
+  response.json({
+    ok: true,
+    message: `User ${(updatedUser as any).name} status updated to ${newStatus}.`,
+    user: publicUser(updatedUser)
+  });
+};
+
 app.delete("/api/users/:userId", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.delete("/api/partners/:id", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.post("/api/users", requireAuth, requireRole(...userManagers), createUserHandler);
 app.post("/api/partners", requireAuth, requireRole(...userManagers), createUserHandler);
+app.patch("/api/users/:userId/status", requireAuth, requireRole(...userManagers), updateUserStatusHandler);
+app.patch("/api/partners/:id/status", requireAuth, requireRole(...userManagers), updateUserStatusHandler);
 
 app.get("/api/dashboard", requireAuth, async (request, response) => {
   const data = await store.read();
@@ -727,7 +867,7 @@ app.get("/api/dashboard", requireAuth, async (request, response) => {
     user: publicUser(user),
     metrics: calculateDashboardMetrics(publicUser(user), safeUsers, data.claims, data.payments, data.schedules, data.disputes),
     trends: buildTrends(publicUser(user), data.claims),
-    leaderboards: buildQuarterlyLeaderboards(safeUsers, data.claims, data.payments),
+    leaderboards: isStaffRole(user.role) ? buildQuarterlyLeaderboards(safeUsers, data.claims, data.payments) : undefined,
     claims,
     disputes,
     tickets: scopedTickets(user.role, user.id, data.tickets).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),

@@ -98,8 +98,10 @@ export async function login(email: string, password: string, portal?: "admin" | 
   });
 }
 
+export type RegisterResult = { ok?: boolean; message?: string; pendingApproval?: boolean; token?: string } & Partial<AuthUser>;
+
 export async function register(name: string, email: string, password: string, agency: string, branch: string, role: "AGENT" | "SUB_DEVELOPER") {
-  return apiRequest<AuthUser>(undefined, "/auth/register", {
+  return apiRequest<RegisterResult>(undefined, "/auth/register", {
     method: "POST",
     body: JSON.stringify({ name, email, password, agency, branch, role })
   });

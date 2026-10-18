@@ -58,6 +58,7 @@ import {
   Sun,
   Trash2,
   UploadCloud,
+  UserCheck,
   UserRound,
   UserRoundPlus,
   Users,
@@ -489,7 +490,9 @@ function LoginScreen() {
     const trimmedBranch = branch.trim();
     try {
       await register(trimmedName, trimmedEmail, trimmedPassword, trimmedAgency, trimmedBranch, accountRole);
-      setSuccess("Account created successfully. You are now signed in.");
+      setMode("login");
+      setPassword("");
+      setSuccess("Account registered successfully! Your account is awaiting admin approval before you can log in.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create account");
     } finally {
@@ -818,7 +821,7 @@ function Portal() {
       { id: "disputes", label: "Disputes", icon: Gavel, badge: payload?.metrics.openDisputes },
       { id: "payments", label: "Payments", icon: CreditCard },
       { id: "support", label: "Support tickets", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
-      { id: "people", label: "People", icon: Users },
+      { id: "people", label: "People", icon: Users, badge: payload?.metrics.pendingUsers || payload?.users?.filter((u) => u.status === "pending_approval" || (!u.active && u.status !== "disabled")).length || undefined },
       { id: "audit", label: "Audit trail", icon: History },
       { id: "leaderboard", label: "Leaderboard", icon: Trophy },
       { id: "settings", label: "Settings & Security", icon: KeyRound }
@@ -831,7 +834,6 @@ function Portal() {
       { id: "disputes", label: "Disputes", icon: Gavel },
       { id: "payments", label: "Payment history", icon: WalletCards },
       { id: "support", label: "Support center", icon: LifeBuoy, badge: payload?.tickets.filter((ticket) => ticket.status !== "RESOLVED").length },
-      { id: "leaderboard", label: "Leaderboard", icon: Trophy },
       { id: "settings", label: "Security & Password", icon: KeyRound }
     ];
 
@@ -987,7 +989,7 @@ function ViewRouter({
   if (activeView === "disputes") return <DisputesPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "payments") return <PaymentsPanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "support") return <SupportPanel payload={payload} token={token} refresh={refresh} />;
-  if (activeView === "leaderboard") return <LeaderboardPanel payload={payload} />;
+  if (activeView === "leaderboard") return staff ? <LeaderboardPanel payload={payload} /> : <AgentOverview payload={payload} token={token} refresh={refresh} navigate={navigate} />;
   if (activeView === "people") return <PeoplePanel payload={payload} token={token} refresh={refresh} />;
   if (activeView === "audit") return <AuditPanel payload={payload} />;
   if (activeView === "settings") return <SettingsPanel token={token} user={payload.user} refresh={refresh} />;
@@ -2598,12 +2600,18 @@ function PeoplePanel({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
-  const [roleFilter, setRoleFilter] = useState<"ALL" | "ACTIVE" | "AGENT" | "SUB_DEVELOPER" | "STAFF">("ALL");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | "ACTIVE" | "PENDING" | "AGENT" | "SUB_DEVELOPER" | "STAFF">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  const pendingUsers = useMemo(() => {
+    return users.filter((u) => u.status === "pending_approval" || (!u.active && u.status !== "disabled"));
+  }, [users]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       if (roleFilter === "ACTIVE" && !user.active) return false;
+      if (roleFilter === "PENDING" && !(user.status === "pending_approval" || (!user.active && user.status !== "disabled"))) return false;
       if (roleFilter === "AGENT" && user.role !== "AGENT") return false;
       if (roleFilter === "SUB_DEVELOPER" && user.role !== "SUB_DEVELOPER") return false;
       if (roleFilter === "STAFF" && !isStaff(user)) return false;
@@ -2624,6 +2632,28 @@ function PeoplePanel({
       return true;
     });
   }, [users, roleFilter, searchQuery]);
+
+  async function handleUpdateStatus(targetUser: User, newStatus: "active" | "disabled") {
+    setUpdatingUserId(targetUser.id);
+    setDeleteError(null);
+    try {
+      await apiRequest(token, `/users/${targetUser.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus })
+      });
+      setDeleteSuccess(
+        newStatus === "active"
+          ? `User "${targetUser.name}" has been approved successfully.`
+          : `User "${targetUser.name}" has been disabled.`
+      );
+      setTimeout(() => setDeleteSuccess(null), 5000);
+      await refresh();
+    } catch (err: any) {
+      setDeleteError(err?.message || "Failed to update user status.");
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -2738,6 +2768,44 @@ function PeoplePanel({
         </div>
       ) : null}
 
+      {pendingUsers.length > 0 ? (
+        <div
+          style={{
+            background: "color-mix(in srgb, var(--amber) 12%, var(--panel))",
+            border: "1px solid var(--amber)",
+            borderRadius: 14,
+            padding: "14px 20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--amber-soft)", color: "var(--amber)", display: "grid", placeItems: "center" }}>
+              <UserCheck size={18} />
+            </span>
+            <div>
+              <strong style={{ display: "block", color: "var(--text)" }}>
+                {pendingUsers.length} New {pendingUsers.length === 1 ? "Registration" : "Registrations"} Awaiting Approval
+              </strong>
+              <small style={{ color: "var(--text-secondary)" }}>
+                These partners have registered and need admin approval before they can log in.
+              </small>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="button button-primary tiny"
+            style={{ fontWeight: 600 }}
+            onClick={() => setRoleFilter(roleFilter === "PENDING" ? "ALL" : "PENDING")}
+          >
+            {roleFilter === "PENDING" ? "Show All Users" : `Filter Pending (${pendingUsers.length})`}
+          </button>
+        </div>
+      ) : null}
+
       <section className="metric-grid metric-grid-four">
         <MetricCard
           label="Active users"
@@ -2801,6 +2869,8 @@ function PeoplePanel({
                 <strong>
                   {roleFilter === "ACTIVE"
                     ? "Active Users"
+                    : roleFilter === "PENDING"
+                    ? "Pending Approval"
                     : roleFilter === "AGENT"
                     ? "Agents"
                     : roleFilter === "SUB_DEVELOPER"
@@ -2832,6 +2902,7 @@ function PeoplePanel({
             <tbody>
               {filteredUsers.map((user) => {
                 const isSelf = user.id === payload.user.id;
+                const isPending = user.status === "pending_approval" || (!user.active && user.status !== "disabled");
                 const canDelete = isAdmin && !isSelf;
                 return (
                   <tr key={user.id}>
@@ -2851,38 +2922,77 @@ function PeoplePanel({
                     <td>{user.branch ?? "—"}</td>
                     <td>{user.phone ?? "—"}</td>
                     <td>
-                      <span className={`entry-status ${user.active ? "available" : "locked"}`}>
+                      <span className={`entry-status ${user.active ? "available" : isPending ? "in-review" : "locked"}`}>
                         <i />
-                        {user.active ? "Active" : "Disabled"}
+                        {isPending ? "Pending Approval" : user.active ? "Active" : "Disabled"}
                       </span>
                     </td>
                     <td>{dateOnly(user.createdAt.slice(0, 10))}</td>
                     <td style={{ textAlign: "right" }}>
-                      {canDelete ? (
-                        <button
-                          type="button"
-                          className="icon-button tiny danger-action"
-                          title={`Delete ${user.name}`}
-                          onClick={() => {
-                            setDeleteError(null);
-                            setUserToDelete(user);
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      ) : isSelf ? (
-                        <span className="self-tag" title="Your account">
-                          You
-                        </span>
-                      ) : (
-                        <button
-                          className="icon-button tiny"
-                          disabled
-                          style={{ opacity: 0.3, cursor: "not-allowed" }}
-                        >
-                          <Command size={14} />
-                        </button>
-                      )}
+                      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+                        {isAdmin && isPending ? (
+                          <button
+                            type="button"
+                            className="button button-primary tiny"
+                            style={{ padding: "4px 10px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                            disabled={updatingUserId === user.id}
+                            onClick={() => handleUpdateStatus(user, "active")}
+                            title={`Approve ${user.name}`}
+                          >
+                            <Check size={13} /> Approve
+                          </button>
+                        ) : null}
+                        {isAdmin && !isSelf && !isPending ? (
+                          user.active ? (
+                            <button
+                              type="button"
+                              className="button button-secondary tiny"
+                              style={{ padding: "4px 8px", fontSize: 11 }}
+                              disabled={updatingUserId === user.id}
+                              onClick={() => handleUpdateStatus(user, "disabled")}
+                              title="Disable account"
+                            >
+                              Disable
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button button-primary tiny"
+                              style={{ padding: "4px 8px", fontSize: 11 }}
+                              disabled={updatingUserId === user.id}
+                              onClick={() => handleUpdateStatus(user, "active")}
+                              title="Enable account"
+                            >
+                              Enable
+                            </button>
+                          )
+                        ) : null}
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            className="icon-button tiny danger-action"
+                            title={`Delete ${user.name}`}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setUserToDelete(user);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        ) : isSelf ? (
+                          <span className="self-tag" title="Your account">
+                            You
+                          </span>
+                        ) : (
+                          <button
+                            className="icon-button tiny"
+                            disabled
+                            style={{ opacity: 0.3, cursor: "not-allowed" }}
+                          >
+                            <Command size={14} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

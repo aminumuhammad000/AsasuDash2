@@ -92,8 +92,9 @@ async function runTests() {
     log('POST /api/auth/login (Bad Credentials)', false, err.message);
   }
 
-  // 6. User Registration
+  // 6. User Registration (requires admin approval)
   const testEmail = `partner_${Date.now()}@asasurealty.com`;
+  let registeredUserId = '';
   try {
     const res = await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
@@ -109,9 +110,39 @@ async function runTests() {
       })
     });
     const data = await res.json();
-    log('POST /api/auth/register', res.ok && data.email === testEmail, `registered: ${data.email}`);
+    log('POST /api/auth/register (Pending Admin Approval)', res.ok && data.pendingApproval === true, `message: ${data.message}`);
+
+    // Try logging in before approval (should be 403 awaiting approval)
+    const loginAttempt = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: testEmail, password: 'Password@123', portal: 'user' })
+    });
+    log('POST /api/auth/login (Unapproved registration blocked 403)', loginAttempt.status === 403, `status: ${loginAttempt.status}`);
+
+    // Admin approves the new partner
+    const approveRes = await fetch(`${BASE_URL}/api/users/${testEmail}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`
+      },
+      body: JSON.stringify({ status: 'active' })
+    });
+    const approveData = await approveRes.json();
+    registeredUserId = approveData.user?.id || '';
+    log('PATCH /api/users/:userId/status (Admin approval)', approveRes.ok && approveData.user?.active === true, `approved: ${testEmail}`);
+
+    // Now partner can log in successfully
+    const approvedLogin = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: testEmail, password: 'Password@123', portal: 'user' })
+    });
+    const approvedData = await approvedLogin.json();
+    log('POST /api/auth/login (Approved partner login success)', approvedLogin.ok && !!approvedData.token, `name: ${approvedData.name}`);
   } catch (err) {
-    log('POST /api/auth/register', false, err.message);
+    log('POST /api/auth/register (Approval workflow)', false, err.message);
   }
 
   // 7. GET /api/me (Current authenticated profile)
@@ -146,16 +177,23 @@ async function runTests() {
     log('PATCH /api/me/payment-account', false, err.message);
   }
 
-  // 9. GET /api/dashboard
+  // 9. GET /api/dashboard & Leaderboard visibility check
   try {
-    const res = await fetch(`${BASE_URL}/api/dashboard`, {
+    const adminDashRes = await fetch(`${BASE_URL}/api/dashboard`, {
       headers: { Authorization: `Bearer ${adminToken}` }
     });
-    const data = await res.json();
-    const hasMetrics = data.metrics && typeof data.metrics.totalCommissionEarned === 'number';
-    log('GET /api/dashboard', res.ok && hasMetrics, `totalEarned: ₦${data.metrics?.totalCommissionEarned.toLocaleString()}, schedules: ${data.schedules?.length}`);
+    const adminDashData = await adminDashRes.json();
+    const adminHasLeaderboards = Array.isArray(adminDashData.leaderboards);
+    log('GET /api/dashboard (Admin sees Leaderboards)', adminDashRes.ok && adminHasLeaderboards, `leaderboards: ${adminDashData.leaderboards?.length}`);
+
+    const agentDashRes = await fetch(`${BASE_URL}/api/dashboard`, {
+      headers: { Authorization: `Bearer ${agentToken}` }
+    });
+    const agentDashData = await agentDashRes.json();
+    const agentLeaderboardsHidden = agentDashData.leaderboards === undefined;
+    log('GET /api/dashboard (Leaderboards hidden from users)', agentDashRes.ok && agentLeaderboardsHidden, `leaderboards hidden: ${agentLeaderboardsHidden}`);
   } catch (err) {
-    log('GET /api/dashboard', false, err.message);
+    log('GET /api/dashboard (Leaderboard visibility)', false, err.message);
   }
 
   // 10. GET /api/payment-schedules/:scheduleId/entries
@@ -275,11 +313,14 @@ async function runTests() {
     log('DELETE /api/users/:userId (Self-deletion blocked)', false, err.message);
   }
 
-  // 18. Register temporary user then delete by Admin
+  // 18. Create temporary user then delete by Admin
   try {
-    const regRes = await fetch(`${BASE_URL}/api/auth/register`, {
+    const regRes = await fetch(`${BASE_URL}/api/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`
+      },
       body: JSON.stringify({
         name: 'Delete Test User',
         email: `deltest_${Date.now()}@asasurealty.com`,

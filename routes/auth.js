@@ -20,13 +20,14 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const userCount = await User.countDocuments();
     const assignedRole = role || (userCount === 0 ? 'admin' : 'partner');
+    const isFirstAdmin = assignedRole === 'admin' || userCount === 0;
 
     const user = new User({ 
       email: email.toLowerCase(), 
       password: hashedPassword, 
       name, 
       role: assignedRole,
-      status: 'active',
+      status: isFirstAdmin ? 'active' : 'pending_approval',
       isVerified: true
     });
     
@@ -39,6 +40,77 @@ router.post('/register', async (req, res) => {
       if (r === 'sub_developer' || r === 'sub-developer' || r === 'subdeveloper') return 'SUB_DEVELOPER';
       return String(r).toUpperCase();
     };
+
+    // Sync to store.json
+    try {
+      const path = require('path');
+      const fs = require('fs');
+      const storePath = path.resolve(__dirname, '../ASASU_Commission_Portal/data/store.json');
+      if (fs.existsSync(storePath)) {
+        const storeData = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+        const mappedRole = (r) => {
+          const upper = String(r || '').toUpperCase();
+          if (['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATIONS', 'AUDITOR', 'SUPPORT', 'BRANCH_ADMIN', 'AGENT', 'SUB_DEVELOPER'].includes(upper)) {
+            return upper;
+          }
+          if (upper === 'PARTNER') return 'AGENT';
+          return 'ADMIN';
+        };
+
+        const storeUser = {
+          id: `usr_${Date.now()}`,
+          name,
+          email: email.toLowerCase(),
+          role: mappedRole(assignedRole),
+          agency: 'Direct Partner',
+          active: isFirstAdmin,
+          status: isFirstAdmin ? 'active' : 'pending_approval',
+          createdAt: new Date().toISOString(),
+          passwordHash: hashedPassword
+        };
+        storeData.users = storeData.users || [];
+        if (!storeData.users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+          storeData.users.push(storeUser);
+          fs.writeFileSync(storePath, JSON.stringify(storeData, null, 2));
+        }
+      }
+    } catch (storeErr) {
+      console.warn('Could not sync registered user to store.json:', storeErr.message);
+    }
+
+    if (user.status === 'pending_approval') {
+      try {
+        const { notifyAdmins } = require('../utils/notifications');
+        await notifyAdmins(
+          'Action Required: New Partner Registration',
+          `A new partner application has been submitted by ${user.name} (${user.email}). They are currently waiting for your approval in the admin portal.`,
+          `<div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #1a1f3c; border-radius: 10px;">
+            <h2 style="color: #1a1f3c;">New Partner Registration</h2>
+            <p>A new partner has registered and is now <strong>awaiting your approval</strong>.</p>
+            <div style="background: #f7f8fc; padding: 15px; border-radius: 8px; margin: 15px 0;">
+              <p><strong>Name:</strong> ${user.name}</p>
+              <p><strong>Email:</strong> ${user.email}</p>
+              <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            <p>Please log in to the admin portal to approve or reject this application.</p>
+          </div>`
+        );
+      } catch (notifyErr) {
+        console.warn('Could not notify admins:', notifyErr.message);
+      }
+
+      return res.status(201).json({
+        message: 'Registration successful! Your account is awaiting admin approval. You will be able to log in once an administrator approves your account.',
+        pendingApproval: true,
+        user: {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          role: mapRole(user.role),
+          status: user.status
+        }
+      });
+    }
 
     const token = jwt.sign(
       { sub: user._id.toString(), id: user._id.toString(), email: user.email, role: mapRole(user.role), name: user.name },

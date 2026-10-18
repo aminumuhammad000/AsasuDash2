@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts --sourcemap --out-dir ../../dist --external socket.io",
+    "build": "tsup src/index.ts --format esm --dts --sourcemap --out-dir ../../dist --external socket.io --external mongoose",
     "start": "node ../../dist/index.js",
     "typecheck": "tsc --noEmit"
   },

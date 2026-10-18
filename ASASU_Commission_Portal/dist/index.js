@@ -1,5 +1,3 @@
-import "./chunk-UP2VWCW5.js";
-
 // src/index.ts
 import dotenv from "dotenv";
 import http from "http";
@@ -97,6 +95,7 @@ function calculateDashboardMetrics(user, users, claims, payments, schedules, dis
     metrics.openDisputes = disputes.filter((dispute) => ["OPEN", "UNDER_REVIEW"].includes(dispute.status)).length;
     metrics.averageApprovalHours = approvalDurations.length ? roundCurrency(approvalDurations.reduce((sum, duration) => sum + duration, 0) / approvalDurations.length) : 0;
     metrics.paidToday = roundCurrency(payments.filter((payment) => payment.paidAt.startsWith(today)).reduce((sum, payment) => sum + payment.amount, 0));
+    metrics.pendingUsers = users.filter((item) => item.status === "pending_approval" || !item.active && item.status !== "disabled").length;
   }
   return metrics;
 }
@@ -1256,7 +1255,7 @@ app.post("/api/auth/register", async (request, response) => {
   const { name, email, password, agency, branch, phone, role } = parsed.data;
   const data = await store.read();
   const normalizedEmail = email.toLowerCase();
-  if (data.users.some((item) => item.email.toLowerCase() === normalizedEmail && item.active)) {
+  if (data.users.some((item) => item.email.toLowerCase() === normalizedEmail)) {
     return void response.status(409).json({ message: "An account with this email already exists." });
   }
   const user = {
@@ -1267,7 +1266,8 @@ app.post("/api/auth/register", async (request, response) => {
     agency,
     branch: branch || void 0,
     phone: phone || void 0,
-    active: true,
+    active: false,
+    status: "pending_approval",
     createdAt: nowIso(),
     passwordHash: await hashPassword(password)
   };
@@ -1279,13 +1279,46 @@ app.post("/api/auth/register", async (request, response) => {
     action: "REGISTER",
     entityType: "AUTH",
     entityId: user.id,
-    detail: `Created ${role.toLowerCase()} account`,
+    detail: `Registered ${role.toLowerCase()} account (awaiting admin approval)`,
     ipAddress: request.ip,
     userAgent: request.get("user-agent"),
     createdAt: nowIso()
   });
+  for (const adminUser of data.users.filter((u) => isStaffRole(u.role))) {
+    data.notifications.push({
+      id: `notif_${nanoid2(10)}`,
+      userId: adminUser.id,
+      title: "New Registration Awaiting Approval",
+      body: `${name} (${normalizedEmail}) has registered as a ${role.toLowerCase()} and is awaiting your approval.`,
+      read: false,
+      createdAt: nowIso()
+    });
+  }
   await store.write(data);
-  response.json(authResponse(user));
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUser = mongoose.models.User || mongoose.model("User");
+      const existing = await MongoUser.findOne({ email: normalizedEmail });
+      if (!existing) {
+        await MongoUser.create({
+          name,
+          email: normalizedEmail,
+          password: user.passwordHash,
+          role: role.toLowerCase(),
+          status: "pending_approval",
+          isVerified: true
+        });
+      }
+    }
+  } catch (mongoErr) {
+    console.warn("MongoDB registration sync warning:", mongoErr);
+  }
+  response.status(201).json({
+    ok: true,
+    pendingApproval: true,
+    message: "Registration successful! Your account is awaiting admin approval before you can log in."
+  });
 });
 var handleLogin = async (request, response, forcedPortal) => {
   const parsed = z.object({
@@ -1295,9 +1328,19 @@ var handleLogin = async (request, response, forcedPortal) => {
   }).safeParse(request.body);
   if (!parsed.success) return void response.status(400).json({ message: "A valid email and password are required" });
   const data = await store.read();
-  const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase() && item.active);
+  const user = data.users.find((item) => item.email.toLowerCase() === parsed.data.email.toLowerCase());
   if (!user || !await verifyPassword(parsed.data.password, user.passwordHash)) {
     return void response.status(401).json({ message: "Invalid login credentials" });
+  }
+  if (user.status === "pending_approval" || !user.active && user.status !== "disabled") {
+    return void response.status(403).json({
+      message: "Your account is awaiting admin approval. Please contact the administrator or check back later."
+    });
+  }
+  if (!user.active || user.status === "disabled") {
+    return void response.status(403).json({
+      message: "Your account has been disabled. Please contact the administrator."
+    });
   }
   const portalType = forcedPortal || parsed.data.portal;
   if (portalType === "admin" && !isStaffRole(user.role)) {
@@ -1325,7 +1368,7 @@ app.post("/api/auth/forgot-password", async (request, response) => {
   const user = data.users.find((u) => u.email.toLowerCase() === emailNorm);
   let mongoUser = null;
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const User = mongoose.models.User || mongoose.model("User");
       mongoUser = await User.findOne({ email: emailNorm });
@@ -1390,7 +1433,7 @@ app.post("/api/auth/reset-password", async (request, response) => {
   const user = data.users.find((u) => u.email.toLowerCase() === emailNorm);
   let mongoUser = null;
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const User = mongoose.models.User || mongoose.model("User");
       mongoUser = await User.findOne({ email: emailNorm });
@@ -1458,7 +1501,7 @@ app.post("/api/auth/change-password", requireAuth, async (request, response) => 
     logAction(storeData, request, "PASSWORD_CHANGED", "USER", user.id, `Password changed by ${user.name}`);
   });
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const User = mongoose.models.User || mongoose.model("User");
       const mongoUser = await User.findOne({ email: user.email.toLowerCase() });
@@ -1529,7 +1572,7 @@ var deleteUserHandler = async (request, response) => {
     return void response.status(404).json({ message: "User not found" });
   }
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const User = mongoose.models.User || mongoose.model("User");
       if (User) {
@@ -1599,7 +1642,7 @@ var createUserHandler = async (request, response) => {
     return void response.status(409).json({ message: "A user with this email address already exists." });
   }
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const MongoUser = mongoose.models.User || mongoose.model("User");
       const existing = await MongoUser.findOne({ email: normalizedEmail });
@@ -1619,10 +1662,86 @@ var createUserHandler = async (request, response) => {
   }
   response.status(201).json(publicUser(createdUser));
 };
+var updateUserStatusHandler = async (request, response) => {
+  const targetId = String(request.params.userId || request.params.id || "");
+  const schema = z.object({
+    status: z.enum(["active", "disabled", "pending_approval"]).optional(),
+    active: z.boolean().optional()
+  });
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) {
+    return void response.status(400).json({ message: "Invalid status provided. Must be 'active', 'disabled', or 'pending_approval'." });
+  }
+  let newStatus;
+  let newActive;
+  if (parsed.data.status) {
+    newStatus = parsed.data.status;
+    newActive = newStatus === "active";
+  } else if (typeof parsed.data.active === "boolean") {
+    newActive = parsed.data.active;
+    newStatus = newActive ? "active" : "disabled";
+  } else {
+    return void response.status(400).json({ message: "Please specify status or active" });
+  }
+  let updatedUser;
+  await store.mutate((data) => {
+    const user = data.users.find((item) => item.id === targetId || item._id === targetId || item.email.toLowerCase() === targetId.toLowerCase());
+    if (!user) return;
+    user.status = newStatus;
+    user.active = newActive;
+    updatedUser = user;
+    if (newStatus === "active") {
+      data.notifications.push({
+        id: `notif_${nanoid2(10)}`,
+        userId: user.id,
+        title: "Account Approved",
+        body: "Your ASASU partner account has been approved by an administrator. You now have full access to submit and manage claims.",
+        read: false,
+        createdAt: nowIso()
+      });
+    }
+    logAction(
+      data,
+      request,
+      "USER_STATUS_UPDATED",
+      "USER",
+      user.id,
+      `Admin ${request.user.name} updated status of ${user.name} (${user.email}) to ${newStatus}.`
+    );
+  });
+  if (!updatedUser) {
+    return void response.status(404).json({ message: "User not found" });
+  }
+  try {
+    const mongoose = (await import("mongoose")).default;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      const MongoUser = mongoose.models.User || mongoose.model("User");
+      if (MongoUser) {
+        if (mongoose.Types.ObjectId.isValid(targetId)) {
+          await MongoUser.findByIdAndUpdate(targetId, { status: newStatus });
+        } else {
+          await MongoUser.updateOne(
+            { $or: [{ _id: targetId }, { email: updatedUser.email.toLowerCase() }] },
+            { status: newStatus }
+          );
+        }
+      }
+    }
+  } catch (mongoErr) {
+    console.warn("MongoDB status sync warning:", mongoErr);
+  }
+  response.json({
+    ok: true,
+    message: `User ${updatedUser.name} status updated to ${newStatus}.`,
+    user: publicUser(updatedUser)
+  });
+};
 app.delete("/api/users/:userId", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.delete("/api/partners/:id", requireAuth, requireRole(...userManagers), deleteUserHandler);
 app.post("/api/users", requireAuth, requireRole(...userManagers), createUserHandler);
 app.post("/api/partners", requireAuth, requireRole(...userManagers), createUserHandler);
+app.patch("/api/users/:userId/status", requireAuth, requireRole(...userManagers), updateUserStatusHandler);
+app.patch("/api/partners/:id/status", requireAuth, requireRole(...userManagers), updateUserStatusHandler);
 app.get("/api/dashboard", requireAuth, async (request, response) => {
   const data = await store.read();
   const user = request.user;
@@ -1636,7 +1755,7 @@ app.get("/api/dashboard", requireAuth, async (request, response) => {
     user: publicUser(user),
     metrics: calculateDashboardMetrics(publicUser(user), safeUsers, data.claims, data.payments, data.schedules, data.disputes),
     trends: buildTrends(publicUser(user), data.claims),
-    leaderboards: buildQuarterlyLeaderboards(safeUsers, data.claims, data.payments),
+    leaderboards: isStaffRole(user.role) ? buildQuarterlyLeaderboards(safeUsers, data.claims, data.payments) : void 0,
     claims,
     disputes,
     tickets: scopedTickets(user.role, user.id, data.tickets).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
@@ -1737,7 +1856,7 @@ async function notifyPartnersOfNewSchedule(schedule, data) {
     data.notifications.push(notify(user.id, "New payment schedule published", `${schedule.branch} \xB7 ${schedule.paymentDate} is ready. Search your clients and claim in seconds.`));
   }
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const MongoUserModel = mongoose.models.User || mongoose.model("User");
       const mongoPartners = await MongoUserModel.find({
@@ -1921,7 +2040,7 @@ async function notifyAdminsOfNewClaim(claim, submitter, schedule, storeData) {
     storeData.notifications.push(notify(admin.id, "New claim submitted", `${submitter.name} submitted ${claim.items.length} client${claim.items.length === 1 ? "" : "s"} for \u20A6${claim.totalPayable.toLocaleString("en-NG")}.`));
   }
   try {
-    const mongoose = (await import("./mongoose-3ENMBSP7.js")).default;
+    const mongoose = (await import("mongoose")).default;
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       const MongoUserModel = mongoose.models.User || mongoose.model("User");
       const Setting = mongoose.models.Setting || mongoose.model("Setting");

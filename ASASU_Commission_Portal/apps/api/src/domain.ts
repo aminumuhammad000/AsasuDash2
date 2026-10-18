@@ -151,6 +151,7 @@ export function calculateDashboardMetrics(
       ? roundCurrency(approvalDurations.reduce((sum, duration) => sum + duration, 0) / approvalDurations.length)
       : 0;
     metrics.paidToday = roundCurrency(payments.filter((payment) => payment.paidAt.startsWith(today)).reduce((sum, payment) => sum + payment.amount, 0));
+    metrics.pendingUsers = users.filter((item) => item.status === "pending_approval" || (!item.active && item.status !== "disabled")).length;
   }
 
   return metrics;

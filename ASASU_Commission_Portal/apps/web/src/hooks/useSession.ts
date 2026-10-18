@@ -34,9 +34,12 @@ export const useSession = create<SessionState>((set) => ({
     set({ user, token: user.token, hydrated: true, expiredNotification: undefined });
   },
   register: async (name, email, password, agency, branch, role) => {
-    const user = await apiRegister(name, email, password, agency, branch, role);
-    localStorage.setItem(storageKey, JSON.stringify(user));
-    set({ user, token: user.token, hydrated: true, expiredNotification: undefined });
+    const res = await apiRegister(name, email, password, agency, branch, role);
+    if (res?.token) {
+      const user = res as AuthUser;
+      localStorage.setItem(storageKey, JSON.stringify(user));
+      set({ user, token: user.token, hydrated: true, expiredNotification: undefined });
+    }
   },
   logout: (expiredReason?: string) => {
     localStorage.removeItem(storageKey);
