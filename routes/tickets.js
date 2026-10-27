@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Ticket = require('../models/Ticket');
 const auth = require('../middleware/auth');
-const sendEmail = require('../utils/email');
+const { sendEmail, getFrontendUrl } = require('../utils/email');
 
 // Get tickets (Admin sees all, Partner sees theirs)
 router.get('/', auth, async (req, res) => {
@@ -81,7 +81,11 @@ router.post('/:id/reply', auth, async (req, res) => {
               <div style="background:#f4f6f9;border-left:4px solid #e8b84b;padding:20px;margin:20px 0;border-radius:4px;">
                 <p style="margin:0;color:#333;font-size:15px;">"${message.trim()}"</p>
               </div>
-              <p style="color:#555;">Please log in to the Partner Portal to continue this conversation.</p>
+              <p style="color:#555;">Please log in to your dashboard to view and continue this conversation.</p>
+              <div style="text-align:center;margin:25px 0;">
+                <a href="${getFrontendUrl()}/" style="display:inline-block;padding:12px 28px;background:#1a1f3c;color:#ffffff;font-weight:700;text-decoration:none;border-radius:6px;font-size:14px;">View Ticket in Dashboard →</a>
+              </div>
+              <p style="font-size:11px;color:#888;text-align:center;">Direct link: <a href="${getFrontendUrl()}/">${getFrontendUrl()}/</a></p>
               <div style="margin-top:30px;padding-top:20px;border-top:1px solid #eee;">
                 <p style="color:#777;font-size:13px;">Best regards,</p>
                 <p style="color:#1a1f3c;font-weight:700;">ASASU REALTY LTD — Support Team</p>
@@ -95,7 +99,7 @@ router.post('/:id/reply', auth, async (req, res) => {
         await sendEmail(
           ticket.email,
           `Reply on Support Ticket ${ticket.ticketId} — ASASU Realty LTD`,
-          `Dear ${ticket.partnerName}, the admin has replied to your ticket ${ticket.ticketId}: "${message.trim()}"`,
+          `Dear ${ticket.partnerName}, the admin has replied to your ticket ${ticket.ticketId}: "${message.trim()}"\n\nView ticket on dashboard: ${getFrontendUrl()}/`,
           emailHtml
         );
       } catch (emailErr) {

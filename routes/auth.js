@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const sendEmail = require('../utils/email');
+const { sendEmail, getFrontendUrl } = require('../utils/email');
 const router = express.Router();
 
 // Helper to generate 6-digit OTP
@@ -83,7 +83,7 @@ router.post('/register', async (req, res) => {
         const { notifyAdmins } = require('../utils/notifications');
         await notifyAdmins(
           'Action Required: New Partner Registration',
-          `A new partner application has been submitted by ${user.name} (${user.email}). They are currently waiting for your approval in the admin portal.`,
+          `A new partner application has been submitted by ${user.name} (${user.email}). They are currently waiting for your approval in the admin portal.\nAdmin link: ${getFrontendUrl()}/admin`,
           `<div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #1a1f3c; border-radius: 10px;">
             <h2 style="color: #1a1f3c;">New Partner Registration</h2>
             <p>A new partner has registered and is now <strong>awaiting your approval</strong>.</p>
@@ -93,10 +93,39 @@ router.post('/register', async (req, res) => {
               <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
             </div>
             <p>Please log in to the admin portal to approve or reject this application.</p>
+            <div style="text-align: center; margin-top: 20px;">
+              <a href="${getFrontendUrl()}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">Review in Admin Dashboard →</a>
+            </div>
+            <p style="font-size: 11px; color: #777; text-align: center; margin-top: 10px;">Link: <a href="${getFrontendUrl()}/admin">${getFrontendUrl()}/admin</a></p>
           </div>`
         );
       } catch (notifyErr) {
         console.warn('Could not notify admins:', notifyErr.message);
+      }
+
+      if (user.email) {
+        sendEmail(
+          user.email,
+          'Registration Received — ASASU Commission Portal',
+          `Hello ${user.name},\n\nThank you for registering as an ASASU partner. Your application is currently awaiting administrator review and approval.\n\nOnce approved, you will be able to log in to your dashboard at: ${getFrontendUrl()}/\n\nBest regards,\nASASU Realty Ltd`,
+          `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 20px;">
+              <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">Application Received</h2>
+              <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal · Partner Registration</span>
+            </div>
+            <p style="color: #334155; font-size: 15px;">Hello <strong>${user.name}</strong>,</p>
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">Thank you for registering with ASASU Realty Ltd. Your application has been received and is currently awaiting approval from our operations team.</p>
+            <div style="background: #fff8e6; border-left: 4px solid #e8b84b; padding: 14px 18px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+              <p style="margin: 0; color: #78350f; font-size: 13px; line-height: 1.6;">
+                <strong>⏳ Status: Pending Approval</strong><br>
+                You will receive an email confirmation as soon as your account has been approved. You can then sign in directly to your dashboard.
+              </p>
+            </div>
+            <div style="text-align: center; margin: 24px 0;">
+              <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: 700; text-decoration: none; border-radius: 8px;">Portal Homepage →</a>
+            </div>
+          </div>`
+        ).catch(e => console.warn('Could not send registration email to user:', e.message));
       }
 
       return res.status(201).json({
@@ -157,7 +186,7 @@ router.post('/verify-otp', async (req, res) => {
     const { notifyAdmins } = require('../utils/notifications');
     await notifyAdmins(
       'Action Required: New Partner Registration',
-      `A new partner application has been submitted by ${user.name} (${user.email}). They are currently waiting for your approval in the admin portal.`,
+      `A new partner application has been submitted by ${user.name} (${user.email}). They are currently waiting for your approval in the admin portal.\nAdmin link: ${getFrontendUrl()}/admin`,
       `<div style="font-family: sans-serif; max-width: 600px; padding: 20px; border: 1px solid #1a1f3c; border-radius: 10px;">
         <h2 style="color: #1a1f3c;">New Partner Registration</h2>
         <p>A new partner has verified their email and is now <strong>awaiting your approval</strong>.</p>
@@ -167,7 +196,10 @@ router.post('/verify-otp', async (req, res) => {
           <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
         </div>
         <p>Please log in to the admin portal to approve or reject this application.</p>
-        <a href="${process.env.FRONTEND_URL || '#'}" style="display: inline-block; padding: 10px 20px; background: #e8b84b; color: #1a1f3c; text-decoration: none; border-radius: 5px; font-weight: bold;">Open Portal</a>
+        <div style="text-align: center; margin-top: 20px;">
+          <a href="${getFrontendUrl()}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">Open Admin Dashboard →</a>
+        </div>
+        <p style="font-size: 11px; color: #777; text-align: center; margin-top: 10px;">Link: <a href="${getFrontendUrl()}/admin">${getFrontendUrl()}/admin</a></p>
       </div>`
     );
 

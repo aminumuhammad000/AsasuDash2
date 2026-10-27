@@ -6,6 +6,7 @@ const path = require('path');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
+const { sendEmail, getFrontendUrl } = require('../utils/email');
 
 const isAdmin = (role) => {
   const r = String(role || '').toLowerCase();
@@ -68,6 +69,30 @@ router.patch('/:id/status', auth, async (req, res) => {
         type: 'account_status',
         message: `Your account status has been updated to: ${status}`
       });
+    }
+
+    if (status === 'active' && partner && partner.email) {
+      sendEmail(
+        partner.email,
+        'Your ASASU Partner Account is Approved! 🎉',
+        `Hello ${partner.name || 'Partner'},\n\nYour ASASU partner account has been approved by our operations team.\n\nYou can now log in to your dashboard to submit commission claims and view payment schedules:\n${getFrontendUrl()}/\n\nBest regards,\nASASU Realty Team`,
+        `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 20px;">
+            <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">Account Approved 🎉</h2>
+            <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal · Welcome</span>
+          </div>
+          <p style="color: #334155; font-size: 15px;">Hello <strong>${partner.name || 'Partner'}</strong>,</p>
+          <p style="color: #334155; font-size: 14px; line-height: 1.6;">Great news! Your partner account has been verified and approved by the ASASU Realty operations team.</p>
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+            <p style="margin: 0; color: #166534; font-size: 14px; font-weight: 600;">✔ Full Partner Access Enabled</p>
+            <p style="margin: 6px 0 0 0; color: #166534; font-size: 13px;">You can now view uploaded payment schedules, search your clients, and submit commission claims.</p>
+          </div>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 14px 28px; background: #e8b84b; color: #1a1f3c; font-weight: 800; text-decoration: none; border-radius: 8px; font-size: 15px;">Go to Dashboard →</a>
+          </div>
+          <p style="color: #64748b; font-size: 13px; line-height: 1.5;">If the button above does not work, copy and paste this link into your browser:<br><a href="${getFrontendUrl()}/" style="color: #1a1f3c;">${getFrontendUrl()}/</a></p>
+        </div>`
+      ).catch((err) => console.error('[Account Approval Email Error]:', err));
     }
 
     res.json(partner || { ok: true, status });

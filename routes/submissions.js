@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const ExcelJS = require('exceljs');
-const sendEmail = require('../utils/email');
+const { sendEmail, getFrontendUrl } = require('../utils/email');
 const cloudinary = require('../utils/cloudinary');
 const fs = require('fs');
 
@@ -183,7 +183,10 @@ router.post('/', [auth, upload.single('file')], async (req, res) => {
             ${notes ? `<p><strong>Note:</strong> ${notes}</p>` : ''}
           </div>
           <p>Please log in to the admin portal to review the supporting documents and approve/reject.</p>
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5001'}/admin" style="display:inline-block;padding:10px 20px;background:#e8b84b;color:#1a1f3c;text-decoration:none;border-radius:6px;font-weight:bold;">Review in Admin Portal</a>
+          <div style="text-align:center;margin-top:20px;">
+            <a href="${getFrontendUrl()}/admin" style="display:inline-block;padding:12px 24px;background:#e8b84b;color:#1a1f3c;text-decoration:none;border-radius:6px;font-weight:bold;">Review in Admin Dashboard →</a>
+          </div>
+          <p style="font-size:11px;color:#777;text-align:center;margin-top:10px;">Link: <a href="${getFrontendUrl()}/admin">${getFrontendUrl()}/admin</a></p>
         </div>`
       );
     } catch (notifErr) {
@@ -221,8 +224,8 @@ router.patch('/:ref/status', auth, async (req, res) => {
 
     // Send email notification
     let subject = `Commission Claim ${status.toUpperCase()}: ${submission.ref}`;
-    let text = `Hello ${submission.partnerName || 'Partner'},\n\nYour commission claim ${submission.ref} has been ${status}.\n\nLog in to the portal for details.`;
-    let html = `<h3>Claim Update</h3><p>Hello <b>${submission.partnerName || 'Partner'}</b>,</p><p>Your commission claim <b>${submission.ref}</b> has been <b>${status}</b>.</p><p>Please log in to the portal for more details.</p>`;
+    let text = `Hello ${submission.partnerName || 'Partner'},\n\nYour commission claim ${submission.ref} has been ${status}.\n\nView details on your dashboard: ${getFrontendUrl()}/\n\nASASU Realty Ltd`;
+    let html = `<h3>Claim Update</h3><p>Hello <b>${submission.partnerName || 'Partner'}</b>,</p><p>Your commission claim <b>${submission.ref}</b> has been <b>${status}</b>.</p><div style="text-align:center;margin:25px 0;"><a href="${getFrontendUrl()}/" style="display:inline-block;padding:12px 24px;background:#e8b84b;color:#1a1f3c;font-weight:bold;text-decoration:none;border-radius:6px;">Go to Dashboard →</a></div><p style="font-size:12px;color:#888;">Direct link: <a href="${getFrontendUrl()}/">${getFrontendUrl()}/</a></p>`;
 
     if (status === 'paid') {
       subject = `Commission Claim Paid: ${submission.ref} — ASASU REALTY LTD`;
@@ -235,6 +238,8 @@ Kindly check your account balance. Payments are usually credited instantly. If y
 Thank you for your continued trust and partnership with ASASU REALTY LTD. We truly appreciate your support and the confidence you place in our services.
 
 Your success is important to us, and we remain committed to providing a seamless, transparent, and rewarding partnership experience. We look forward to continuing our successful relationship and supporting your growth every step of the way.
+
+View in Dashboard: ${getFrontendUrl()}/
 
 Best regards,
 
@@ -279,10 +284,16 @@ ASASU REALTY LTD`;
               We truly appreciate your support and the confidence you place in our services.
             </p>
 
-            <p style="font-size:15px;color:#4a5568;margin:0 0 30px 0;">
+            <p style="font-size:15px;color:#4a5568;margin:0 0 20px 0;">
               Your success is important to us, and we remain committed to providing a seamless, transparent, and rewarding
               partnership experience. We look forward to continuing our successful relationship and supporting your growth every step of the way.
             </p>
+
+            <!-- Dashboard Button -->
+            <div style="text-align:center;margin:32px 0 20px 0;">
+              <a href="${getFrontendUrl()}/" style="display:inline-block;padding:14px 32px;background:#1a1f3c;color:#ffffff;font-weight:700;text-decoration:none;border-radius:8px;font-size:15px;letter-spacing:0.5px;">View Payments in Dashboard →</a>
+            </div>
+            <p style="font-size:12px;color:#a0aac4;text-align:center;margin:0 0 20px 0;">Dashboard: <a href="${getFrontendUrl()}/" style="color:#1a1f3c;">${getFrontendUrl()}/</a></p>
 
             <!-- Signature -->
             <div style="margin-top:32px;padding-top:24px;border-top:1px solid #edf2f7;">
@@ -372,7 +383,11 @@ router.post('/:ref/reply', auth, async (req, res) => {
               <div style="background:#f4f6f9;border-left:4px solid #1a1f3c;padding:20px;margin:20px 0;border-radius:4px;">
                 <p style="margin:0;color:#333;font-size:15px;">"${message.trim()}"</p>
               </div>
-              <p style="color:#555;">Please log in to the Partner Portal to view and respond to this message.</p>
+              <p style="color:#555;">Please log in to your dashboard to view and respond to this message.</p>
+              <div style="text-align:center;margin:25px 0;">
+                <a href="${getFrontendUrl()}/" style="display:inline-block;padding:12px 28px;background:#1a1f3c;color:#ffffff;font-weight:700;text-decoration:none;border-radius:6px;font-size:14px;">Open Partner Dashboard →</a>
+              </div>
+              <p style="font-size:11px;color:#888;text-align:center;">Direct link: <a href="${getFrontendUrl()}/">${getFrontendUrl()}/</a></p>
               <div style="margin-top:30px;padding-top:20px;border-top:1px solid #eee;">
                 <p style="color:#777;font-size:13px;">Best regards,</p>
                 <p style="color:#1a1f3c;font-weight:700;">ASASU REALTY LTD — Finance Team</p>

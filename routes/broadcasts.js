@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Broadcast = require('../models/Broadcast');
 const User = require('../models/User');
-const sendEmail = require('../utils/email');
+const { sendEmail, getFrontendUrl } = require('../utils/email');
 const auth = require('../middleware/auth');
 
 // Get all broadcasts
@@ -43,7 +43,7 @@ router.post('/', auth, async (req, res) => {
         return sendEmail(
           partner.email,
           `ASASU Portal: ${title}`,
-          `Hello ${partner.name},\n\nA new announcement has been posted: ${title}\n\n${message}\n\nBest regards,\nASASU Realty LTD Team`,
+          `Hello ${partner.name},\n\nA new announcement has been posted: ${title}\n\n${message}\n\nLog in to your dashboard: ${getFrontendUrl()}/\n\nBest regards,\nASASU Realty LTD Team`,
           `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px;">
             <h2 style="color: #1a1f3c;">New Announcement</h2>
             <p>Hello <strong>${partner.name}</strong>,</p>
@@ -51,7 +51,11 @@ router.post('/', auth, async (req, res) => {
               <h3 style="margin-top: 0; color: #1a1f3c;">${title}</h3>
               <p style="color: #444; line-height: 1.6;">${message}</p>
             </div>
-            <p>Log in to your portal to see more details.</p>
+            <p>Log in to your dashboard to see more details.</p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: bold; text-decoration: none; border-radius: 6px;">Go to Dashboard →</a>
+            </div>
+            <p style="font-size: 11px; color: #888; text-align: center;">Link: <a href="${getFrontendUrl()}/">${getFrontendUrl()}/</a></p>
             <p style="font-size: 12px; color: #888; margin-top: 30px;">Best regards,<br>ASASU Realty LTD Team</p>
           </div>`
         );
@@ -96,14 +100,18 @@ router.post('/specific', auth, async (req, res) => {
     await sendEmail(
       partner.email,
       'ASASU Portal: New Message from Admin',
-      `Hello ${partner.name},\n\nYou have received a direct message from the ASASU Admin:\n\n${message}\n\nBest regards,\nASASU Realty LTD Team`,
+      `Hello ${partner.name},\n\nYou have received a direct message from the ASASU Admin:\n\n${message}\n\nLog in to your dashboard to respond: ${getFrontendUrl()}/\n\nBest regards,\nASASU Realty LTD Team`,
       `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #eee; padding: 20px;">
         <h2 style="color: #1a1f3c;">Direct Message from Admin</h2>
         <p>Hello <strong>${partner.name}</strong>,</p>
         <div style="background: #f7f8fc; padding: 15px; border-radius: 8px; border-left: 4px solid #1a1f3c; margin: 20px 0;">
           <p style="color: #444; line-height: 1.6;">${message}</p>
         </div>
-        <p>Log in to your portal to respond or see more details.</p>
+        <p>Log in to your dashboard to respond or see more details.</p>
+        <div style="text-align: center; margin: 20px 0;">
+          <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; font-weight: bold; text-decoration: none; border-radius: 6px;">Go to Dashboard →</a>
+        </div>
+        <p style="font-size: 11px; color: #888; text-align: center;">Link: <a href="${getFrontendUrl()}/">${getFrontendUrl()}/</a></p>
         <p style="font-size: 12px; color: #888; margin-top: 30px;">Best regards,<br>ASASU Realty LTD Team</p>
       </div>`
     );

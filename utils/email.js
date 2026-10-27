@@ -137,8 +137,20 @@ const verifyEmailConfig = async () => {
   }
 };
 
+const getFrontendUrl = () => {
+  const url = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || process.env.BASE_URL;
+  if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return url.replace(/\/+$/, '');
+  }
+  if (process.env.NODE_ENV === 'production' || !url) {
+    return 'https://asasurealty-commission.com.ng';
+  }
+  return url.replace(/\/+$/, '');
+};
+
 module.exports = sendEmail;
 module.exports.sendEmail = sendEmail;
 module.exports.getTransporter = getTransporter;
 module.exports.isEmailConfigured = isEmailConfigured;
 module.exports.verifyEmailConfig = verifyEmailConfig;
+module.exports.getFrontendUrl = getFrontendUrl;

@@ -1090,6 +1090,16 @@ function loadEmailUtil() {
   };
 }
 var sendEmail = loadEmailUtil();
+function getFrontendUrl() {
+  const url = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || process.env.BASE_URL;
+  if (url && !url.includes("localhost") && !url.includes("127.0.0.1")) {
+    return url.replace(/\/+$/, "");
+  }
+  if (process.env.NODE_ENV === "production" || !url) {
+    return "https://asasurealty-commission.com.ng";
+  }
+  return url.replace(/\/+$/, "");
+}
 var app = express();
 var server = http.createServer(app);
 var port = Number(process.env.PORT ?? process.env.API_PORT ?? 5001);
@@ -1699,6 +1709,37 @@ var updateUserStatusHandler = async (request, response) => {
         read: false,
         createdAt: nowIso()
       });
+      if (user.email) {
+        sendEmail(
+          user.email,
+          "Your ASASU Partner Account is Approved! \u{1F389}",
+          `Hello ${user.name},
+
+Your ASASU partner account has been reviewed and approved by an administrator.
+
+You can now log in to your dashboard to submit commission claims and view payment schedules:
+${getFrontendUrl()}/
+
+Best regards,
+ASASU Realty Team`,
+          `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 28px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 20px;">
+              <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">Account Approved \u{1F389}</h2>
+              <span style="color: #64748b; font-size: 13px;">ASASU Commission Portal \xB7 Welcome</span>
+            </div>
+            <p style="color: #334155; font-size: 15px;">Hello <strong>${user.name}</strong>,</p>
+            <p style="color: #334155; font-size: 14px; line-height: 1.6;">Great news! Your partner account has been verified and approved by the ASASU Realty operations team.</p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 20px 0;">
+              <p style="margin: 0; color: #166534; font-size: 14px; font-weight: 600;">\u2714 Full Partner Access Enabled</p>
+              <p style="margin: 6px 0 0 0; color: #166534; font-size: 13px;">You can now view uploaded payment schedules, search your clients, and submit commission claims.</p>
+            </div>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 14px 28px; background: #e8b84b; color: #1a1f3c; font-weight: 800; text-decoration: none; border-radius: 8px; font-size: 15px;">Go to Dashboard \u2192</a>
+            </div>
+            <p style="color: #64748b; font-size: 13px; line-height: 1.5;">If the button above does not work, copy and paste this link into your browser:<br><a href="${getFrontendUrl()}/" style="color: #1a1f3c;">${getFrontendUrl()}/</a></p>
+          </div>`
+        ).catch((err) => console.error("[Account Approval Email Error]:", err));
+      }
     }
     logAction(
       data,
@@ -1889,7 +1930,10 @@ async function notifyPartnersOfNewSchedule(schedule, data) {
 
 A new payment schedule for ${schedule.branch} (${schedule.paymentDate}) has been published with ${schedule.entryCount} clients.
 
-Log in to the portal to view and claim your clients.`,
+Log in to your dashboard to view and claim your clients:
+${getFrontendUrl()}/
+
+ASASU Realty Ltd`,
         `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
           <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
             <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Payment Schedule Published</h2>
@@ -1905,8 +1949,9 @@ Log in to the portal to view and claim your clients.`,
           </div>
           <p style="color: #334155; font-size: 14px; line-height: 1.5;">Log in now to search your clients and submit your commission claims.</p>
           <div style="text-align: center; margin-top: 20px;">
-            <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/" style="display: inline-block; padding: 12px 24px; background: #e8b84b; color: #1a1f3c; font-weight: 700; text-decoration: none; border-radius: 8px;">Claim Your Clients \u2192</a>
+            <a href="${getFrontendUrl()}/" style="display: inline-block; padding: 14px 28px; background: #e8b84b; color: #1a1f3c; font-weight: 800; text-decoration: none; border-radius: 8px; font-size: 15px;">Go to Dashboard & Claim Clients \u2192</a>
           </div>
+          <p style="color: #64748b; font-size: 12px; text-align: center; margin-top: 16px;">If the button doesn't work, visit: <a href="${getFrontendUrl()}/" style="color: #1a1f3c;">${getFrontendUrl()}/</a></p>
         </div>`
       );
     } catch (err) {
@@ -2078,7 +2123,8 @@ Bank: ${paymentAccount ? `${paymentAccount.bankName} - ${paymentAccount.accountN
 
 Partner Note: ${claim.notes}` : ""}
 
-Please log in to review and verify this claim.`,
+Please log in to review and verify this claim:
+${getFrontendUrl()}/admin`,
         `<div style="font-family: 'DM Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
           <div style="border-bottom: 2px solid #e8b84b; padding-bottom: 12px; margin-bottom: 16px;">
             <h2 style="color: #1a1f3c; margin: 0 0 4px 0;">New Commission Claim Submitted</h2>
@@ -2113,8 +2159,9 @@ Please log in to review and verify this claim.`,
           ` : ""}
 
           <div style="text-align: center; margin-top: 24px;">
-            <a href="${process.env.FRONTEND_URL || "http://localhost:5001"}/admin" style="display: inline-block; padding: 12px 24px; background: #1a1f3c; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px;">Open Admin Portal to Review \u2192</a>
+            <a href="${getFrontendUrl()}/admin" style="display: inline-block; padding: 14px 28px; background: #1a1f3c; color: #ffffff; font-weight: 700; text-decoration: none; border-radius: 8px; font-size: 15px;">Open Admin Dashboard to Review \u2192</a>
           </div>
+          <p style="color: #64748b; font-size: 12px; text-align: center; margin-top: 16px;">Direct Admin Link: <a href="${getFrontendUrl()}/admin" style="color: #1a1f3c;">${getFrontendUrl()}/admin</a></p>
         </div>`
       );
     } catch (err) {

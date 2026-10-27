@@ -343,6 +343,7 @@ function useIsAdminRoute() {
     return (
       window.location.pathname.startsWith("/admin") ||
       window.location.pathname.startsWith("/admin-login") ||
+      window.location.pathname.startsWith("/admin-dashboard") ||
       window.location.search.includes("admin") ||
       window.location.hash.includes("admin")
     );
@@ -353,6 +354,7 @@ function useIsAdminRoute() {
       setIsAdminRoute(
         window.location.pathname.startsWith("/admin") ||
         window.location.pathname.startsWith("/admin-login") ||
+        window.location.pathname.startsWith("/admin-dashboard") ||
         window.location.search.includes("admin") ||
         window.location.hash.includes("admin")
       );
@@ -708,7 +710,23 @@ function LoginScreen() {
                   </button>
                 )}
               </div>
-              {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
+              {error ? (
+                <div className="form-error">
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <CircleAlert size={15} /> <span>{error}</span>
+                  </div>
+                  {error.toLowerCase().includes("admin") && !isAdminRoute ? (
+                    <a href="/admin" className="button button-secondary button-small" style={{ marginTop: 8, display: "inline-flex", textDecoration: "none" }}>
+                      Switch to Admin Sign In →
+                    </a>
+                  ) : null}
+                  {error.toLowerCase().includes("partner") && isAdminRoute ? (
+                    <a href="/" className="button button-secondary button-small" style={{ marginTop: 8, display: "inline-flex", textDecoration: "none" }}>
+                      Switch to Partner Sign In →
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
               {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
               <button className="button button-primary login-button" type="submit" disabled={loading}>
                 {loading ? <Loader2 className="spin" size={17} /> : isAdminRoute ? <ShieldCheck size={17} /> : <LockKeyhole size={17} />}
@@ -753,7 +771,23 @@ function LoginScreen() {
                   </button>
                 </div>
               </label>
-              {error ? <div className="form-error"><CircleAlert size={15} /> {error}</div> : null}
+              {error ? (
+                <div className="form-error">
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <CircleAlert size={15} /> <span>{error}</span>
+                  </div>
+                  {error.toLowerCase().includes("admin") && !isAdminRoute ? (
+                    <a href="/admin" className="button button-secondary button-small" style={{ marginTop: 8, display: "inline-flex", textDecoration: "none" }}>
+                      Switch to Admin Sign In →
+                    </a>
+                  ) : null}
+                  {error.toLowerCase().includes("partner") && isAdminRoute ? (
+                    <a href="/" className="button button-secondary button-small" style={{ marginTop: 8, display: "inline-flex", textDecoration: "none" }}>
+                      Switch to Partner Sign In →
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
               {success ? <div className="form-success"><CheckCircle2 size={15} /> {success}</div> : null}
               <button className="button button-primary login-button" type="submit" disabled={loading}>
                 {loading ? <Loader2 className="spin" size={17} /> : <Plus size={17} />}
@@ -762,16 +796,38 @@ function LoginScreen() {
             </form>
           )}
           <p className="login-security"><ShieldCheck size={13} /> Protected by encrypted, role-based access</p>
+          <div style={{ textAlign: "center", marginTop: 14, fontSize: "12px", color: "var(--muted)" }}>
+            {isAdminRoute ? (
+              <span>Looking for partner portal? <a href="/" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "none" }}>Partner Sign In →</a></span>
+            ) : (
+              <span>Staff or Administrator? <a href="/admin" style={{ color: "var(--primary)", fontWeight: 700, textDecoration: "none" }}>Admin Sign In →</a></span>
+            )}
+          </div>
         </div>
       </section>
     </main>
   );
 }
 
+function getInitialView(): ViewId {
+  if (typeof window === "undefined") return "overview";
+  const search = new URLSearchParams(window.location.search);
+  const viewParam = search.get("view");
+  const hashParam = window.location.hash.replace(/^#/, "");
+  const pathParam = window.location.pathname.replace(/^\/admin/, "").replace(/^\//, "").split("/")[0];
+  const raw = viewParam || hashParam || pathParam || "";
+  const candidate = raw.toLowerCase();
+  const validViews: ViewId[] = ["overview", "claim", "claims", "schedules", "disputes", "payments", "support", "people", "audit", "leaderboard", "settings"];
+  if (validViews.includes(candidate as ViewId)) {
+    return candidate as ViewId;
+  }
+  return "overview";
+}
+
 function Portal() {
   const { user, token, logout } = useSession();
   const [payload, setPayload] = useState<DashboardPayload | null>(null);
-  const [activeView, setActiveView] = useState<ViewId>("overview");
+  const [activeView, setActiveView] = useState<ViewId>(getInitialView);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [dark, setDark] = useState(localStorage.getItem("asasu-theme") === "dark");
@@ -846,6 +902,10 @@ function Portal() {
     }
     setActiveView(view);
     setSidebarOpen(false);
+    if (typeof window !== "undefined") {
+      const base = window.location.pathname.startsWith("/admin") ? "/admin" : "";
+      window.history.replaceState(null, "", view === "overview" ? (base || "/") : `${base}#${view}`);
+    }
   }
 
   async function markNotification(id: string) {
